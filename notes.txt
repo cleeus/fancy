@@ -1,0 +1,13 @@
+PC Speaker Piezzo Buzzer:
+-------------------------
+Resistance: 12 Ohm
+
+@5V: U = R * I
+     I = U / R
+	 I = 5V / 12 Ohm = 416mA
+	 
+
+ULN2803 Darlington Array:
+-------------------------
+
+max load: 500mA
