@@ -6,6 +6,16 @@ Resistance: 12 Ohm
      I = U / R
 	 I = 5V / 12 Ohm = 416mA
 	 
+-> series resistor needed to limit current, e.g. 100Ohm
+
+@5V: I = U / R
+     I = 5V / (12 Ohm + 100 Ohm) = 45mA
+     
+     P = U * I
+     P = 5V * 45mA = 0.225W -> 0.25W resistor is enough
+     
+     to be safe, choose 200R or even 510R
+	 
 
 ULN2803 Darlington Array:
 -------------------------
