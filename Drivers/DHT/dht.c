@@ -126,10 +126,10 @@ static bool DHT_receive_DHT21(DHT_t *dht, uint32_t startTime, float *Temperature
         goto ERROR;
       if(((data[0] + data[1] + data[2] + data[3]) & 0x00FF) != data[4])
         goto ERROR;
-      dht->temperature = (float)(data[2]*256 + data[3]) / 10.0f;
+      dht->temperature = (float)(data[2]*256 + data[3]) * 0.1f;
       if(Temperature != NULL)
         *Temperature = dht->temperature;
-      dht->humidity = (float)(data[0]*256 + data[1]) / 10.0f;
+      dht->humidity = (float)(data[0]*256 + data[1]) * 0.1f;
       if(Humidity != NULL)
         *Humidity = dht->humidity;
       dht->dataValid = true;
@@ -155,10 +155,10 @@ static bool DHT_receive_DHT11(DHT_t *dht, uint32_t startTime, float *Temperature
         goto ERROR;
       if(((data[0] + data[1] + data[2] + data[3]) & 0x00FF) != data[4])
         goto ERROR;
-      dht->temperature = (float)(data[2]*100 + data[3]) / 100.0f;
+      dht->temperature = (float)(data[2]*10 + data[3]) * 0.1f;
       if(Temperature != NULL)
         *Temperature = dht->temperature;
-      dht->humidity = (float)(data[0]*100 + data[1]) / 100.0f;
+      dht->humidity = (float)(data[0]*10 + data[1]) * 0.1f;
       if(Humidity != NULL)
         *Humidity = dht->humidity;
       dht->dataValid = true;
