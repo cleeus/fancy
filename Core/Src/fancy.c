@@ -93,7 +93,7 @@ static void fancy_periodic_alive_sound(void) {
 	cycle_count++;
 	//if(cycle_count >= 7 /*hours*/ * 60 /*minutes*/ * 60 /*seconds*/) {
 	//if(cycle_count >= 1 /*minutes*/ * 60 /*seconds*/) {
-	if(cycle_count >= 5 /* seconds */) {
+	if(cycle_count >= 10 /* seconds */) {
 		fancy_buzzer_sound(BUZZER_FREQ_ALIVE1, 30);
 		fancy_buzzer_sound(BUZZER_FREQ_ALIVE2, 30);
 		fancy_buzzer_sound(BUZZER_FREQ_ALIVE1, 30);

@@ -154,36 +154,100 @@ void tm1637_write_segment(tm1637_t *tm1637, const uint8_t *segments, uint8_t len
   tm1637_unlock(tm1637);  
 }
 //#######################################################################################################################
+static void tm1637_i32toa_n(char *s, const size_t len, int32_t val, const int width) {
+	char buf[16] = {0};
+	int i = 0;
+
+	//check for negativity and special case INT32_MIN
+	const bool negative = val < 0;
+	if(negative) {
+		if(val == INT32_MIN) {
+			strncpy(buf, "-2147483648", sizeof(buf)-1);
+			goto tm1637_i32toa_n_OUTPUT;
+		}
+		//convert to positive, prepend minus at the end
+		val = -val;
+	}
+
+	//base10 conversion loop
+	{
+		for(i=sizeof(buf)-2; val && i  ; i--) {
+			buf[i] = "0123456789"[val % 10];
+			val /= 10;
+		}
+		//prepend zeroes
+		for(; (sizeof(buf) - i - 1) <= width && i ; i--) {
+			buf[i] = '0';
+		}
+		//prepend minus
+		if(negative) {
+			buf[i] = '-';
+		} else {
+			i++;
+		}
+	}
+
+tm1637_i32toa_n_OUTPUT:
+  strncpy(s, &buf[i], len);
+  s[len-1] = '\0';
+}
+
+static void tm1637_ato7seg(uint8_t buffer[6], const char *str) {
+  uint8_t index = 0;
+  for (uint8_t i=0; i < 7; i++) {
+  	switch(str[i]) {
+  		case '-':
+  			buffer[index] = _tm1637_minus;
+  			index++;
+  			break;
+  		case '0':
+  		case '1':
+  		case '2':
+  		case '3':
+  		case '4':
+  		case '5':
+  		case '6':
+  		case '7':
+  		case '8':
+  		case '9':
+        buffer[index] = _tm1637_digit[str[i] - '0'];
+        index++;
+        break;
+  		case '.':
+        if (index > 0)
+          buffer[index - 1] |= _tm1637_dot;
+        break;
+  		default:
+  			buffer[index] = 0;
+  			break;
+  	}
+  }
+}
+
 void tm1637_write_int(tm1637_t *tm1637, int32_t digit, uint8_t pos)
 {
   tm1637_lock(tm1637);
   char str[7];
   uint8_t buffer[6] = {0};
-  snprintf(str, sizeof(str) , "%" PRId32 "", digit);
-  for (uint8_t i=0; i < 6; i++)
-  {
-    if (str[i] == '-')
-      buffer[i] = _tm1637_minus;
-    else if((str[i] >= '0') && (str[i] <= '9'))
-      buffer[i] = _tm1637_digit[str[i] - 48];
-    else
-    {
-      buffer[i] = 0;
-      break;
-    }
-  }
-  tm1637_write_raw(tm1637, buffer, 6, pos);              
-  tm1637_unlock(tm1637);  
+  tm1637_i32toa_n(str, sizeof(str), digit, 1);
+  tm1637_ato7seg(buffer, str);
+  tm1637_write_raw(tm1637, buffer, 6, pos);
+  tm1637_unlock(tm1637);
 }
+
 
 void tm1637_write_fractional(tm1637_t *tm1637, float digit, uint8_t floating_digit, uint8_t pos)
 {
   tm1637_lock(tm1637);
-  char str[8];
+  char str[32];
   uint8_t buffer[6] = {0};
-  const int16_t digit_int = digit;
+  const int16_t  digit_int   =  digit;
   const uint16_t digit_fract = (digit - digit_int) * 10 * floating_digit;
-  snprintf(str, sizeof(str) , "%"PRId16".%"PRIu16, digit_int, digit_fract);
+  tm1637_i32toa_n(str, sizeof(str), digit_int, 1);
+  strncat(str, ".", sizeof(str)-1);
+  const size_t len = strnlen(str, sizeof(str));
+  tm1637_i32toa_n(&str[len], sizeof(str)-len, digit_fract, 1);
+
   if (tm1637->show_zero == false)
   {
     for (int8_t i = strlen(str) - 1; i > 0; i--)
@@ -194,30 +258,9 @@ void tm1637_write_fractional(tm1637_t *tm1637, float digit, uint8_t floating_dig
         break;
     }
   }
-  uint8_t index = 0;
-  for (uint8_t i=0; i < 7; i++)
-  {
-    if (str[i] == '-')
-    {
-      buffer[index] = _tm1637_minus;
-      index++;
-    }
-    else if((str[i] >= '0') && (str[i] <= '9'))
-    {
-      buffer[index] = _tm1637_digit[str[i] - 48];
-      index++;
-    }
-    else if (str[i] == '.')
-    {
-      if (index > 0)
-        buffer[index - 1] |= _tm1637_dot;
-    }
-    else
-    {
-      buffer[index] = 0;
-      break;
-    }
-  }
+
+  tm1637_ato7seg(buffer, str);
+
   tm1637_write_raw(tm1637, buffer, 6, pos);
   tm1637_unlock(tm1637);
 }
