@@ -38,17 +38,17 @@ void tm1637_delay_us(uint8_t delay)
 //#######################################################################################################################
 void tm1637_start(tm1637_t *tm1637)
 {
-  HAL_GPIO_WritePin(tm1637->gpio_dat, tm1637->pin_dat, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(tm1637->gpio_dat, tm1637->pin_dat, tm1637->gpio_reset);
   tm1637_delay_us(_TM1637_BIT_DELAY);
 }
 //#######################################################################################################################
 void tm1637_stop(tm1637_t *tm1637)
 {
-  HAL_GPIO_WritePin(tm1637->gpio_dat, tm1637->pin_dat, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(tm1637->gpio_dat, tm1637->pin_dat, tm1637->gpio_reset);
   tm1637_delay_us(_TM1637_BIT_DELAY);
-  HAL_GPIO_WritePin(tm1637->gpio_clk, tm1637->pin_clk, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(tm1637->gpio_clk, tm1637->pin_clk, tm1637->gpio_set);
   tm1637_delay_us(_TM1637_BIT_DELAY);
-  HAL_GPIO_WritePin(tm1637->gpio_dat, tm1637->pin_dat, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(tm1637->gpio_dat, tm1637->pin_dat, tm1637->gpio_set);
   tm1637_delay_us(_TM1637_BIT_DELAY);
 }
 //#######################################################################################################################
@@ -57,28 +57,28 @@ uint8_t tm1637_write_byte(tm1637_t *tm1637, uint8_t data)
   //  write 8 bit data
   for (uint8_t i = 0; i < 8; i++)
   {
-    HAL_GPIO_WritePin(tm1637->gpio_clk, tm1637->pin_clk, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(tm1637->gpio_clk, tm1637->pin_clk, tm1637->gpio_reset);
     tm1637_delay_us(_TM1637_BIT_DELAY);
     if (data & 0x01)
-      HAL_GPIO_WritePin(tm1637->gpio_dat, tm1637->pin_dat, GPIO_PIN_SET);
+      HAL_GPIO_WritePin(tm1637->gpio_dat, tm1637->pin_dat, tm1637->gpio_set);
     else
-      HAL_GPIO_WritePin(tm1637->gpio_dat, tm1637->pin_dat, GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(tm1637->gpio_dat, tm1637->pin_dat, tm1637->gpio_reset);
     tm1637_delay_us(_TM1637_BIT_DELAY);
-    HAL_GPIO_WritePin(tm1637->gpio_clk, tm1637->pin_clk, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(tm1637->gpio_clk, tm1637->pin_clk, tm1637->gpio_set);
     tm1637_delay_us(_TM1637_BIT_DELAY);
     data = data >> 1;
   }
   // wait for acknowledge
-  HAL_GPIO_WritePin(tm1637->gpio_clk, tm1637->pin_clk, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(tm1637->gpio_dat, tm1637->pin_dat, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(tm1637->gpio_clk, tm1637->pin_clk, tm1637->gpio_reset);
+  HAL_GPIO_WritePin(tm1637->gpio_dat, tm1637->pin_dat, tm1637->gpio_set);
   tm1637_delay_us(_TM1637_BIT_DELAY);
-  HAL_GPIO_WritePin(tm1637->gpio_clk, tm1637->pin_clk, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(tm1637->gpio_clk, tm1637->pin_clk, tm1637->gpio_set);
   tm1637_delay_us(_TM1637_BIT_DELAY);
   uint8_t ack = HAL_GPIO_ReadPin(tm1637->gpio_dat, tm1637->pin_dat);
   if (ack == 0)
-    HAL_GPIO_WritePin(tm1637->gpio_dat, tm1637->pin_dat, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(tm1637->gpio_dat, tm1637->pin_dat, tm1637->gpio_reset);
   tm1637_delay_us(_TM1637_BIT_DELAY);
-  HAL_GPIO_WritePin(tm1637->gpio_clk, tm1637->pin_clk, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(tm1637->gpio_clk, tm1637->pin_clk, tm1637->gpio_reset);
   tm1637_delay_us(_TM1637_BIT_DELAY);
   return ack;
 }
@@ -95,7 +95,7 @@ void tm1637_unlock(tm1637_t *tm1637)
   tm1637->lock = 0;  
 }
 //#######################################################################################################################
-void tm1637_init(tm1637_t *tm1637, GPIO_TypeDef *gpio_clk, uint16_t pin_clk, GPIO_TypeDef *gpio_dat, uint16_t pin_dat)
+void tm1637_init(tm1637_t *tm1637, GPIO_TypeDef *gpio_clk, uint16_t pin_clk, GPIO_TypeDef *gpio_dat, uint16_t pin_dat, TM1637_Polarity polarity)
 {
   memset(tm1637, 0, sizeof(tm1637_t)); 
   //  set max brightess
@@ -106,8 +106,17 @@ void tm1637_init(tm1637_t *tm1637, GPIO_TypeDef *gpio_clk, uint16_t pin_clk, GPI
   tm1637->pin_clk = pin_clk;
   tm1637->gpio_dat = gpio_dat;
   tm1637->pin_dat = pin_dat;
+
   GPIO_InitTypeDef g = {0};
-  g.Mode = GPIO_MODE_OUTPUT_OD;
+  if(polarity==TM1637_POLARITY_NORMAL_OD) {
+  	tm1637->gpio_reset = GPIO_PIN_RESET;
+  	tm1637->gpio_set = GPIO_PIN_SET;
+    g.Mode = GPIO_MODE_OUTPUT_OD;
+  } else if(polarity == TM1637_POLARITY_INV_PP) {
+  	tm1637->gpio_reset = GPIO_PIN_SET;
+  	tm1637->gpio_set = GPIO_PIN_RESET;
+    g.Mode = GPIO_MODE_OUTPUT_PP;
+  }
   g.Pull = GPIO_NOPULL;
   g.Speed = GPIO_SPEED_FREQ_HIGH;
   g.Pin = pin_clk;

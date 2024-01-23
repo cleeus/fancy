@@ -36,7 +36,11 @@ typedef struct
 {
   uint8_t               lock;
   uint8_t               brightness;
-  bool                  show_zero;    
+  bool                  show_zero;
+
+  GPIO_PinState         gpio_set;
+  GPIO_PinState         gpio_reset;
+
   GPIO_TypeDef          *gpio_clk;
   GPIO_TypeDef          *gpio_dat;
   uint16_t              pin_clk;   
@@ -44,9 +48,13 @@ typedef struct
   
 }tm1637_t;
 
+typedef enum {
+	TM1637_POLARITY_NORMAL_OD,
+	TM1637_POLARITY_INV_PP
+} TM1637_Polarity;
 //####################################################################################################################
 
-void tm1637_init(tm1637_t *tm1637, GPIO_TypeDef *gpio_clk, uint16_t pin_clk, GPIO_TypeDef *gpio_dat, uint16_t pin_dat);
+void tm1637_init(tm1637_t *tm1637, GPIO_TypeDef *gpio_clk, uint16_t pin_clk, GPIO_TypeDef *gpio_dat, uint16_t pin_dat, TM1637_Polarity polarity);
 void tm1637_brightness(tm1637_t *tm1637, uint8_t brightness_0_to_7);
 void tm1637_write_segment(tm1637_t *tm1637, const uint8_t *segments, uint8_t length, uint8_t pos);
 void tm1637_write_int(tm1637_t *tm1637, int32_t digit, uint8_t pos);

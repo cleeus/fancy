@@ -305,6 +305,9 @@ static void MX_GPIO_Init(void)
                           |RELAY_K5_Pin|RELAY_K6_Pin|RELAY_K7_Pin|RELAY_K8_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, TM1637_NCLK_Pin|TM1637_NDIO_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, TM1637_CLK_Pin|TM1637_DIO_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : LED_PC13_Pin */
@@ -322,6 +325,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : TM1637_NCLK_Pin TM1637_NDIO_Pin */
+  GPIO_InitStruct.Pin = TM1637_NCLK_Pin|TM1637_NDIO_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : TM1637_CLK_Pin TM1637_DIO_Pin */
   GPIO_InitStruct.Pin = TM1637_CLK_Pin|TM1637_DIO_Pin;

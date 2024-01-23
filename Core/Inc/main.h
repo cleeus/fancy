@@ -77,6 +77,10 @@ void Error_Handler(void);
 #define RELAY_K7_GPIO_Port GPIOA
 #define RELAY_K8_Pin GPIO_PIN_7
 #define RELAY_K8_GPIO_Port GPIOA
+#define TM1637_NCLK_Pin GPIO_PIN_3
+#define TM1637_NCLK_GPIO_Port GPIOB
+#define TM1637_NDIO_Pin GPIO_PIN_4
+#define TM1637_NDIO_GPIO_Port GPIOB
 #define TM1637_CLK_Pin GPIO_PIN_5
 #define TM1637_CLK_GPIO_Port GPIOB
 #define TM1637_DIO_Pin GPIO_PIN_6
