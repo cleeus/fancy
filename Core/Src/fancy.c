@@ -18,7 +18,7 @@ static struct Fancy_t {
 	uint8_t            buzzer_tim_channel;
 } g_fancy = {0};
 
-static tm1637_t g_tm1637;
+//static tm1637_t g_tm1637;
 static tm1637_t g_tm1637_INV;
 static DHT_t    g_dht11;
 
@@ -38,8 +38,8 @@ static void fancy_init(
 		TIM_HandleTypeDef *buzzer_tim,
 		uint8_t            buzzer_tim_channel)
 {
-	tm1637_init(&g_tm1637, TM1637_CLK_GPIO_Port, TM1637_CLK_Pin, TM1637_DIO_GPIO_Port, TM1637_DIO_Pin, TM1637_POLARITY_NORMAL_OD);
-	tm1637_show_zero(&g_tm1637, true);
+	//tm1637_init(&g_tm1637, TM1637_CLK_GPIO_Port, TM1637_CLK_Pin, TM1637_DIO_GPIO_Port, TM1637_DIO_Pin, TM1637_POLARITY_NORMAL_OD);
+	//tm1637_show_zero(&g_tm1637, true);
 
 	tm1637_init(&g_tm1637_INV, TM1637_NCLK_GPIO_Port, TM1637_NCLK_Pin, TM1637_NDIO_GPIO_Port, TM1637_NDIO_Pin, TM1637_POLARITY_INV_PP);
 	tm1637_show_zero(&g_tm1637_INV, true);
@@ -58,10 +58,20 @@ static void fancy_heartbeat(void) {
 }
 
 static void fancy_tm1637_display_update(void) {
-	tm1637_brightness(&g_tm1637, 2);
-	tm1637_write_fractional(&g_tm1637, g_fancy.temp, 1, 0);
+	//tm1637_brightness(&g_tm1637, 2);
+	//tm1637_write_fractional(&g_tm1637, g_fancy.temp, 1, 0);
 
-	tm1637_brightness(&g_tm1637_INV, 0);
+	static int8_t brightness_counter = 0;
+	static int8_t brightness_inc = 1;
+
+	brightness_counter += brightness_inc;
+	if(brightness_counter >= 3) {
+		brightness_inc = -1;
+	} else if(brightness_counter <= 0) {
+		brightness_inc = 1;
+	}
+
+	tm1637_brightness(&g_tm1637_INV, brightness_counter);
 	tm1637_write_fractional(&g_tm1637_INV, g_fancy.temp, 1, 0);
 }
 

@@ -81,10 +81,6 @@ void Error_Handler(void);
 #define TM1637_NCLK_GPIO_Port GPIOB
 #define TM1637_NDIO_Pin GPIO_PIN_4
 #define TM1637_NDIO_GPIO_Port GPIOB
-#define TM1637_CLK_Pin GPIO_PIN_5
-#define TM1637_CLK_GPIO_Port GPIOB
-#define TM1637_DIO_Pin GPIO_PIN_6
-#define TM1637_DIO_GPIO_Port GPIOB
 #define DHT11_DATA_Pin GPIO_PIN_7
 #define DHT11_DATA_GPIO_Port GPIOB
 #define DHT11_DATA_EXTI_IRQn EXTI9_5_IRQn
