@@ -1,10 +1,3 @@
-/*
- * fancy.h
- *
- *  Created on: Jan 13, 2024
- *      Author: kai.dietrich
- */
-
 #ifndef SRC_FANCY_H_
 #define SRC_FANCY_H_
 

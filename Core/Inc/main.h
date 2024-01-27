@@ -77,6 +77,8 @@ void Error_Handler(void);
 #define RELAY_K7_GPIO_Port GPIOA
 #define RELAY_K8_Pin GPIO_PIN_7
 #define RELAY_K8_GPIO_Port GPIOA
+#define RELAY_OE_Pin GPIO_PIN_0
+#define RELAY_OE_GPIO_Port GPIOB
 #define DHT11_DATA_Pin GPIO_PIN_11
 #define DHT11_DATA_GPIO_Port GPIOB
 #define DHT11_DATA_EXTI_IRQn EXTI15_10_IRQn

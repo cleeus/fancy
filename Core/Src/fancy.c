@@ -8,14 +8,18 @@
 #include "main.h"
 #include "tm1637.h"
 #include "dht.h"
+#include "fancy_rectrl.h"
 
 static struct Fancy_t {
 	bool is_initialzed;
 	float temp;
 	float humi;
+	rectrl_t rectrl;
 
 	TIM_HandleTypeDef *buzzer_tim;
 	uint8_t            buzzer_tim_channel;
+
+
 } g_fancy = {0};
 
 //static tm1637_t g_tm1637;
@@ -48,6 +52,9 @@ static void fancy_init(
 
 	g_fancy.buzzer_tim = buzzer_tim;
 	g_fancy.buzzer_tim_channel = buzzer_tim_channel;
+
+	rectrl_init(&g_fancy.rectrl);
+
 	g_fancy.is_initialzed = true;
 }
 
@@ -135,6 +142,18 @@ static void fancy_cyclic(void) {
 	}
 }
 
+static void fancy_relay_switch_test(void) {
+	for(int i=0; i<8; i++) {
+		rectrl_switch_active(&g_fancy.rectrl, i);
+		HAL_Delay(100);
+	}
+
+	for(int i=0; i<8; i++) {
+		rectrl_switch_inactive(&g_fancy.rectrl, i);
+		HAL_Delay(100);
+	}
+}
+
 void fancy(
 		TIM_HandleTypeDef *dht11_tim,
 		TIM_HandleTypeDef *buzzer_tim,
@@ -142,6 +161,7 @@ void fancy(
 {
 	fancy_init(dht11_tim, buzzer_tim, buzzer_tim_channel);
 	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST, 200);
+	fancy_relay_switch_test();
 	while(1) {
 		fancy_cyclic();
 	}

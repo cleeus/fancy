@@ -1,3 +1,14 @@
+TODO:
+----
+[ ] alarm when external temperature is not available
+[ ] alarm when external temperature is out of bounds
+[ ] alarm when internal temperature is not available
+[ ] alarm when internal temperature is out of bounds
+
+[ ] STM32 low power mode between measurement cycles
+
+[ ] add load switches
+
 PC Speaker Piezzo Buzzer:
 -------------------------
 Resistance: 12 Ohm
@@ -21,3 +32,22 @@ ULN2803 Darlington Array:
 -------------------------
 
 max load: 500mA
+
+
+
+relay module
+------------
+
+ELEGOO 8ch relay module, behind TSX0108 3.3V->5V level shifter
+
+TSX0108 has an output enable pin that needs to be set to put a level on the output pins
+
+Low level on STM32 pin means relay switches on (active low, inverted logic).
+
+Activating a relay drains about 70mA of current from the 5V rail
+
+
+
+
+
+
