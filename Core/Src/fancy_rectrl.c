@@ -17,13 +17,17 @@ static const struct rectrl_pin_t rectrl_pin_list[] = {
 		[7] = {.port = RELAY_K8_GPIO_Port, .pin = RELAY_K8_Pin},
 };
 
+static void rectrl_delay(void) {
+	//relays need time to switch physically
+	HAL_Delay(5);
+}
 
 void rectrl_init(rectrl_t *rectrl) {
 	rectrl->output_enable = false;
 	rectrl->switch_state = RECTRL_ALL_INACTIVE;
 	rectrl->is_initialized = true;
 
-	rectrl_switch(rectrl, RECTRL_ALL_INACTIVE);
+	rectrl_switch_all(rectrl, RECTRL_ALL_INACTIVE);
 
 	HAL_GPIO_WritePin(RELAY_OE_GPIO_Port, RELAY_OE_Pin, GPIO_PIN_SET);
 	rectrl->output_enable = true;
@@ -40,6 +44,7 @@ void rectrl_switch_active(rectrl_t *rectrl, const int relay_index) {
 	rectrl->switch_state |= (0x01 << relay_index) & 0xFF;
 
 	HAL_GPIO_WritePin(rectrl_pin_list[relay_index].port, rectrl_pin_list[relay_index].pin, GPIO_PIN_RESET);
+	rectrl_delay();
 }
 
 void rectrl_switch_inactive(rectrl_t *rectrl, const int relay_index) {
@@ -54,10 +59,11 @@ void rectrl_switch_inactive(rectrl_t *rectrl, const int relay_index) {
 	rectrl->switch_state &= (~(0x01 << relay_index)) & 0xFF;
 
 	HAL_GPIO_WritePin(rectrl_pin_list[relay_index].port, rectrl_pin_list[relay_index].pin, GPIO_PIN_SET);
+	rectrl_delay();
 }
 
 
-void rectrl_switch(rectrl_t *rectrl, const uint8_t switch_state) {
+void rectrl_switch_all(rectrl_t *rectrl, const uint8_t switch_state) {
 	if(!rectrl->is_initialized) {
 		return;
 	}
@@ -68,4 +74,5 @@ void rectrl_switch(rectrl_t *rectrl, const uint8_t switch_state) {
 		const GPIO_PinState pin_state = ((switch_state >> i) & 0x01) ? GPIO_PIN_RESET : GPIO_PIN_SET;
 		HAL_GPIO_WritePin(rectrl_pin_list[i].port, rectrl_pin_list[i].pin, pin_state);
 	}
+	rectrl_delay();
 }
