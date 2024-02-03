@@ -76,3 +76,27 @@ void rectrl_switch_all(rectrl_t *rectrl, const uint8_t switch_state) {
 	}
 	rectrl_delay();
 }
+
+bool rectrl_is_active(rectrl_t *rectrl, const int relay_index) {
+	if(!rectrl->is_initialized) {
+		return false;
+	}
+
+	if(relay_index < 0 || relay_index > 7) {
+		return false;
+	}
+
+	return HAL_GPIO_ReadPin(rectrl_pin_list[relay_index].port, rectrl_pin_list[relay_index].pin) == GPIO_PIN_RESET;
+}
+
+bool rectrl_is_inactive(rectrl_t *rectrl, const int relay_index) {
+	if(!rectrl->is_initialized) {
+		return false;
+	}
+
+	if(relay_index < 0 || relay_index > 7) {
+		return false;
+	}
+
+	return HAL_GPIO_ReadPin(rectrl_pin_list[relay_index].port, rectrl_pin_list[relay_index].pin) == GPIO_PIN_SET;
+}

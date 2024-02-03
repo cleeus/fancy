@@ -27,5 +27,7 @@ void rectrl_init(rectrl_t *rectrl);
 void rectrl_switch_active  (rectrl_t *rectrl, const int relay_index);
 void rectrl_switch_inactive(rectrl_t *rectrl, const int relay_index);
 void rectrl_switch_all     (rectrl_t *rectrl, const uint8_t switch_state);
+bool rectrl_is_active(rectrl_t *rectrl, const int relay_index);
+bool rectrl_is_inactive(rectrl_t *rectrl, const int relay_index);
 
 #endif

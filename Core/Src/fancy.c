@@ -20,6 +20,7 @@ static struct Fancy_t {
 	TIM_HandleTypeDef *buzzer_tim;
 	uint8_t            buzzer_tim_channel;
 
+	int8_t switch_i;
 
 } g_fancy = {0};
 
@@ -127,34 +128,71 @@ static void fancy_periodic_alive_sound(void) {
 }
 
 struct fancy_switchconf_t {
-	bool R_CH0; //output, switches between 12V (inactive) and alternative voltage supply (active)
-	bool R_CH1; //output, switches between 12V (inactive) and alternative voltage supply (active)
-	bool R_CH2; //output, switches between 12V (inactive) and alternative voltage supply (active)
-	bool R_CH3; //output, switches between 12V (inactive) and alternative voltage supply (active)
-	bool R_CH4; //output, switches between 12V (inactive) and alternative voltage supply (active)
-	bool R_CH5; //output, switches between 12V (inactive) and alternative voltage supply (active)
-	bool R_CH6; //output, switches between 12V (inactive) and alternative voltage supply (active)
-	bool R_CH7_12V; //voltage routing, switches between 12V supply on (inactive) and off (active)
-	bool M_ALTV; //voltage routing, altvolt mosfet 1&2, switches between off (inactive) and on (active)
-	bool M_CH7_12V; //output, switches 12V on output channel 8, off=inactive, on=active
-	bool M_CH7_ALTV; //output, switches altvolt on output channel 8, off=inactive, on=active
+	uint16_t  R_CH0:1; //output, switches between 12V (inactive) and alternative voltage supply (active)
+	uint16_t  R_CH1:1; //output, switches between 12V (inactive) and alternative voltage supply (active)
+	uint16_t  R_CH2:1; //output, switches between 12V (inactive) and alternative voltage supply (active)
+	uint16_t  R_CH3:1; //output, switches between 12V (inactive) and alternative voltage supply (active)
+	uint16_t  R_CH4:1; //output, switches between 12V (inactive) and alternative voltage supply (active)
+	uint16_t  R_CH5:1; //output, switches between 12V (inactive) and alternative voltage supply (active)
+	uint16_t  R_CH6:1; //output, switches between 12V (inactive) and alternative voltage supply (active)
+	uint16_t  R_CH7_12V:1; //voltage routing, switches between 12V supply on (inactive) and off (active)
+	uint16_t  M_ALTV:1; //voltage routing, altvolt mosfet 1&2, switches between off (inactive) and on (active)
+	uint16_t  M_CH7_12V:1; //output, switches 12V on output channel 8, off=inactive, on=active
+	uint16_t  M_CH7_ALTV:1; //output, switches altvolt on output channel 8, off=inactive, on=active
 };
 
+/*
+ * Fan array description
+ *
+ * AF8 = https://www.tacens-anima.com/wp-content/uploads/AF8-ficha-en.pdf
+ * 			 1800 RPM @12V
+ * 			 14dBA
+ * 			 0.12A
+ * 			 51 m^3/h (30.5CFM)
+ *
+ * NR8 = https://noctua.at/de/nf-r8-redux-1800/specification
+ *       1800 RPM @12V
+ *       17dBA
+ *       53m^3/h
+ *       0.06A (max 0.11A)
+ *       0.73W (max 1.32W)
+ *
+ *
+ *     +---------+--------+--------+--------+--------+
+ *     | CH2     | CH7    | CH3    | CH5    | CH6    |
+ *     |         |        |        |        |        |
+ *     | NR8     | AF8    | AF8    | AF8    |        |
+ *     +---------+--------+--------+-----}--+-----}--+
+ *     | CH1     | CH0    | CH4    | CH5    | CH6    |
+ *     |         |        |        |        |        |
+ *     | AF8     | AF8    | AF8    | AF8    | AF8    |
+ *     +---------+--------+--------+--------+--------+
+ */
+
 static const struct fancy_switchconf_t fancy_switchconf[] = {
-	//default, all 12V outputs on, altvolt off
-	[0] = {.R_CH0=0, .R_CH1=0, .R_CH2=0, .R_CH3=0, .R_CH4=0, .R_CH5=0, .R_CH6=0, .R_CH7_12V=0, .M_ALTV=0, .M_CH7_12V=1, .M_CH7_ALTV=0},
-
-	//CH0-3 on altvolt, CH4-7 on 12V
-	[1] = {.R_CH0=1, .R_CH1=1, .R_CH2=1, .R_CH3=1, .R_CH4=0, .R_CH5=0, .R_CH6=0, .R_CH7_12V=0, .M_ALTV=1, .M_CH7_12V=1, .M_CH7_ALTV=0},
-
-	//center, all outputs on altvolt, 12V still on (saves relay power)
-	[2] = {.R_CH0=1, .R_CH1=1, .R_CH2=1, .R_CH3=1, .R_CH4=1, .R_CH5=1, .R_CH6=1, .R_CH7_12V=0, .M_ALTV=1, .M_CH7_12V=0, .M_CH7_ALTV=1},
-
-	//CH0-3 off, CH4-7 on altvolt, 12V off
-	[3] = {.R_CH0=0, .R_CH1=0, .R_CH2=0, .R_CH3=0, .R_CH4=1, .R_CH5=1, .R_CH6=1, .R_CH7_12V=1, .M_ALTV=1, .M_CH7_12V=0, .M_CH7_ALTV=1},
-
-	//most silent, 12V supply switched off, CH1-7 on 12V, CH8 off
-	[4] = {.R_CH1=0, .R_CH1=0, .R_CH2=0, .R_CH3=0, .R_CH4=0, .R_CH5=0, .R_CH6=0, .R_CH7_12V=1, .M_ALTV=0, .M_CH7_12V=0, .M_CH7_ALTV=0},
+	//max (reset state), all 12V outputs on, altvolt off
+	{.R_CH7_12V=0, .M_ALTV=0, .M_CH7_12V=1, .M_CH7_ALTV=0, .R_CH1=0, .R_CH0=0, .R_CH3=0, .R_CH4=0, .R_CH5=0, .R_CH6=0, .R_CH2=0},
+	//switch on altvolt supply, move NR8 to altvolt
+	{.R_CH7_12V=0, .M_ALTV=1, .M_CH7_12V=1, .M_CH7_ALTV=0, .R_CH1=0, .R_CH0=0, .R_CH3=0, .R_CH4=0, .R_CH5=0, .R_CH6=0, .R_CH2=1},
+	//move channels to altvolt one by one
+	{.R_CH7_12V=0, .M_ALTV=1, .M_CH7_12V=1, .M_CH7_ALTV=0, .R_CH1=0, .R_CH0=0, .R_CH3=0, .R_CH4=0, .R_CH5=0, .R_CH6=1, .R_CH2=1},
+	{.R_CH7_12V=0, .M_ALTV=1, .M_CH7_12V=1, .M_CH7_ALTV=0, .R_CH1=0, .R_CH0=0, .R_CH3=0, .R_CH4=0, .R_CH5=1, .R_CH6=1, .R_CH2=1},
+	{.R_CH7_12V=0, .M_ALTV=1, .M_CH7_12V=1, .M_CH7_ALTV=0, .R_CH1=0, .R_CH0=0, .R_CH3=0, .R_CH4=1, .R_CH5=1, .R_CH6=1, .R_CH2=1},
+	{.R_CH7_12V=0, .M_ALTV=1, .M_CH7_12V=1, .M_CH7_ALTV=0, .R_CH1=0, .R_CH0=0, .R_CH3=1, .R_CH4=1, .R_CH5=1, .R_CH6=1, .R_CH2=1},
+	{.R_CH7_12V=0, .M_ALTV=1, .M_CH7_12V=1, .M_CH7_ALTV=0, .R_CH1=0, .R_CH0=1, .R_CH3=1, .R_CH4=1, .R_CH5=1, .R_CH6=1, .R_CH2=1},
+	//center, all outputs on altvolt, 12V still on (saves relay driver power)
+	{.R_CH7_12V=0, .M_ALTV=1, .M_CH7_12V=0, .M_CH7_ALTV=1, .R_CH1=1, .R_CH0=1, .R_CH3=1, .R_CH4=1, .R_CH5=1, .R_CH6=1, .R_CH2=1},
+	//switch off 12V, switch off NR8
+	{.R_CH7_12V=1, .M_ALTV=1, .M_CH7_12V=0, .M_CH7_ALTV=1, .R_CH1=1, .R_CH0=1, .R_CH3=1, .R_CH4=1, .R_CH5=1, .R_CH6=1, .R_CH2=0},
+	//switch off channels one by one
+	{.R_CH7_12V=1, .M_ALTV=1, .M_CH7_12V=0, .M_CH7_ALTV=1, .R_CH1=1, .R_CH0=1, .R_CH3=1, .R_CH4=1, .R_CH5=1, .R_CH6=0, .R_CH2=0},
+	{.R_CH7_12V=1, .M_ALTV=1, .M_CH7_12V=0, .M_CH7_ALTV=1, .R_CH1=1, .R_CH0=1, .R_CH3=1, .R_CH4=1, .R_CH5=0, .R_CH6=0, .R_CH2=0},
+	{.R_CH7_12V=1, .M_ALTV=1, .M_CH7_12V=0, .M_CH7_ALTV=1, .R_CH1=1, .R_CH0=1, .R_CH3=1, .R_CH4=0, .R_CH5=0, .R_CH6=0, .R_CH2=0},
+	{.R_CH7_12V=1, .M_ALTV=1, .M_CH7_12V=0, .M_CH7_ALTV=1, .R_CH1=1, .R_CH0=1, .R_CH3=0, .R_CH4=0, .R_CH5=0, .R_CH6=0, .R_CH2=0},
+	{.R_CH7_12V=1, .M_ALTV=1, .M_CH7_12V=0, .M_CH7_ALTV=1, .R_CH1=1, .R_CH0=0, .R_CH3=0, .R_CH4=0, .R_CH5=0, .R_CH6=0, .R_CH2=0},
+	{.R_CH7_12V=1, .M_ALTV=1, .M_CH7_12V=0, .M_CH7_ALTV=1, .R_CH1=0, .R_CH0=0, .R_CH3=0, .R_CH4=0, .R_CH5=0, .R_CH6=0, .R_CH2=0},
+  //min, 12V supply switched off, CH1-7 on 12V, CH7 off
+	{.R_CH7_12V=1, .M_ALTV=0, .M_CH7_12V=0, .M_CH7_ALTV=0, .R_CH1=0, .R_CH0=0, .R_CH3=0, .R_CH4=0, .R_CH5=0, .R_CH6=0, .R_CH2=0},
 };
 
 static void fancy_transition_switch_state(const int old_switch_i, const int new_switch_i) {
@@ -166,22 +204,23 @@ static void fancy_transition_switch_state(const int old_switch_i, const int new_
 	}
 
 	const struct fancy_switchconf_t * const swconf = &fancy_switchconf[new_switch_i];
-	const struct fancy_switchconf_t * const swconf_old = &fancy_switchconf[old_switch_i];
 
-	const int load_switch_delay = 200;
-	if(swconf != swconf_old) {
+	const int load_switch_delay = 500;
+	if(new_switch_i != old_switch_i) {
 		//actually switch transition
 
-		const bool switch_on_12V =   swconf_old->R_CH7_12V && !swconf->R_CH7_12V;
-		const bool switch_on_ALTV = !swconf_old->M_ALTV    &&  swconf->M_ALTV;
+		const bool R_CH7_12V      = rectrl_is_active(&g_fancy.rectrl, 7);
+		const bool M_ALTV         = HAL_GPIO_ReadPin(ALTVOLT_MOSFET_1_GPIO_Port, ALTVOLT_MOSFET_1_Pin) == GPIO_PIN_SET;
+		const bool switch_on_12V  =  R_CH7_12V && !swconf->R_CH7_12V;
+		const bool switch_on_ALTV = !M_ALTV    &&  swconf->M_ALTV;
 
 		if(switch_on_12V) {
-			//turn off CH7 consumer
+			//turn off CH7 consumer first
 			HAL_GPIO_WritePin(CH7_MOSFET_12V_GPIO_Port, CH7_MOSFET_12V_Pin, GPIO_PIN_RESET);
 			HAL_Delay(load_switch_delay);
 		}
 		if(switch_on_ALTV) {
-			//turn off CH7 consumer
+			//turn off CH7 consumer first
 			HAL_GPIO_WritePin(CH7_MOSFET_ALTVOLT_GPIO_Port, CH7_MOSFET_ALTVOLT_Pin, GPIO_PIN_RESET);
 			HAL_Delay(load_switch_delay);
 		}
@@ -277,22 +316,35 @@ static void fancy_transition_switch_state(const int old_switch_i, const int new_
 	}
 }
 
-static void fancy_cycle_switches(void) {
-	static int8_t switch_i = 0;
-	static int8_t cycle_count = 0;
+static void fancy_panic(void) {
+	fancy_transition_switch_state(sizeof(fancy_switchconf)/sizeof(fancy_switchconf[0]) - 1, 0);
+}
 
-	const int old_switch_i = switch_i;
+static void fancy_cycle_switches(void) {
+	static int8_t cycle_count = 0;
+	static int8_t direction = 1;
+
+	const int old_switch_i = g_fancy.switch_i;
 
 	cycle_count++;
+	if(cycle_count == 10) {
+		fancy_panic();
+	}
 	if(cycle_count >= 20) {
 		cycle_count = 0;
-		switch_i++;
-	}
-	if(switch_i >= sizeof(fancy_switchconf)/sizeof(fancy_switchconf[0])) {
-		switch_i = 0;
+		g_fancy.switch_i += direction;
 	}
 
-	fancy_transition_switch_state(old_switch_i, switch_i);
+	if(g_fancy.switch_i >= (int8_t)(sizeof(fancy_switchconf)/sizeof(fancy_switchconf[0]))) {
+		direction = -1;
+		g_fancy.switch_i = (int8_t)(sizeof(fancy_switchconf)/sizeof(fancy_switchconf[0]) - 1);
+	}
+	if(g_fancy.switch_i < 0) {
+		direction = 1;
+		g_fancy.switch_i = 0;
+	}
+
+	fancy_transition_switch_state(old_switch_i, g_fancy.switch_i);
 }
 
 static void fancy_cyclic(void) {
@@ -313,16 +365,23 @@ static void fancy_cyclic(void) {
 	}
 }
 
-static void fancy_relay_switch_test(void) {
-	for(int i=0; i<8; i++) {
-		rectrl_switch_active(&g_fancy.rectrl, i);
-		HAL_Delay(100);
-	}
 
-	for(int i=0; i<8; i++) {
-		rectrl_switch_inactive(&g_fancy.rectrl, i);
-		HAL_Delay(100);
+static void fancy_relay_switch_test(void) {
+	const int delay_ms = 1000;
+
+	for(int i=0; i<7; i++) {
+		rectrl_switch_active(&g_fancy.rectrl, i);
+		HAL_Delay(delay_ms);
 	}
+	HAL_GPIO_WritePin(CH7_MOSFET_12V_GPIO_Port, CH7_MOSFET_12V_Pin, GPIO_PIN_RESET);
+	HAL_Delay(delay_ms);
+
+	for(int i=0; i<7; i++) {
+		rectrl_switch_inactive(&g_fancy.rectrl, i);
+		HAL_Delay(delay_ms);
+	}
+	HAL_GPIO_WritePin(CH7_MOSFET_12V_GPIO_Port, CH7_MOSFET_12V_Pin, GPIO_PIN_SET);
+	HAL_Delay(delay_ms);
 }
 
 
@@ -333,7 +392,7 @@ void fancy(
 {
 	fancy_init(dht11_tim, buzzer_tim, buzzer_tim_channel);
 	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST, 200);
-	//fancy_relay_switch_test();
+	fancy_relay_switch_test();
 	while(1) {
 		fancy_cyclic();
 	}
