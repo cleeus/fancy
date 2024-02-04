@@ -31,6 +31,7 @@ static struct Fancy_t {
 	TIM_HandleTypeDef *buzzer_tim;
 	uint8_t            buzzer_tim_channel;
 
+	struct ntc_t ntc;
 
 } g_fancy = {0};
 
@@ -68,7 +69,7 @@ static void fancy_init(
 
 	rectrl_init(&g_fancy.rectrl);
 
-	ntc_init(ntc_adc);
+	ntc_init(&g_fancy.ntc, ntc_adc);
 
 	g_fancy.is_initialzed = true;
 }
@@ -390,7 +391,7 @@ static void fancy_read_dht_sensor(void) {
 }
 
 static void fancy_read_ntc_sensor(void) {
-	g_fancy.temp_ntc.val = ntc_get_degrees();
+	g_fancy.temp_ntc.val = ntc_measure_degC(&g_fancy.ntc);
 	g_fancy.temp_ntc.is_valid = ntc_is_valid(g_fancy.temp_ntc.val);
 }
 
