@@ -13,14 +13,23 @@
 
 static struct Fancy_t {
 	bool is_initialzed;
-	float temp;
-	float humi;
+
+	struct {
+		float val;
+		bool is_valid;
+	} temp_dht;
+
+	struct {
+		float val;
+		bool is_valid;
+	} temp_ntc;
+
 	rectrl_t rectrl;
+	int8_t switch_state;
 
 	TIM_HandleTypeDef *buzzer_tim;
 	uint8_t            buzzer_tim_channel;
 
-	int8_t switch_i;
 
 } g_fancy = {0};
 
@@ -72,16 +81,29 @@ static void fancy_tm1637_display_update(void) {
 
 	static int8_t brightness_counter = 0;
 	static int8_t brightness_inc = 1;
+	static int8_t value_cycle = 0;
 
 	brightness_counter += brightness_inc;
 	if(brightness_counter >= 3) {
 		brightness_inc = -1;
 	} else if(brightness_counter <= 0) {
 		brightness_inc = 1;
+		value_cycle++;
 	}
 
 	tm1637_brightness(&g_tm1637_INV, brightness_counter);
-	tm1637_write_fractional(&g_tm1637_INV, g_fancy.temp, 1, 0);
+
+	switch(value_cycle) {
+		case 0:
+			tm1637_write_fractional(&g_tm1637_INV, 'd', g_fancy.temp_dht.val, 1, 0);
+			break;
+		case 1:
+			tm1637_write_fractional(&g_tm1637_INV, 't', g_fancy.temp_ntc.val, 1, 0);
+			break;
+		default:
+			value_cycle = 0;
+			break;
+	}
 }
 
 enum BuzzerFreqs {
@@ -324,7 +346,7 @@ static void fancy_cycle_switches(void) {
 	static int8_t cycle_count = 0;
 	static int8_t direction = 1;
 
-	const int old_switch_i = g_fancy.switch_i;
+	const int old_switch_i = g_fancy.switch_state;
 
 	cycle_count++;
 	if(cycle_count == 10) {
@@ -332,30 +354,36 @@ static void fancy_cycle_switches(void) {
 	}
 	if(cycle_count >= 20) {
 		cycle_count = 0;
-		g_fancy.switch_i += direction;
+		g_fancy.switch_state += direction;
 	}
 
-	if(g_fancy.switch_i >= (int8_t)(sizeof(fancy_switchconf)/sizeof(fancy_switchconf[0]))) {
+	if(g_fancy.switch_state >= (int8_t)(sizeof(fancy_switchconf)/sizeof(fancy_switchconf[0]))) {
 		direction = -1;
-		g_fancy.switch_i = (int8_t)(sizeof(fancy_switchconf)/sizeof(fancy_switchconf[0]) - 1);
+		g_fancy.switch_state = (int8_t)(sizeof(fancy_switchconf)/sizeof(fancy_switchconf[0]) - 1);
 	}
-	if(g_fancy.switch_i < 0) {
+	if(g_fancy.switch_state < 0) {
 		direction = 1;
-		g_fancy.switch_i = 0;
+		g_fancy.switch_state = 0;
 	}
 
-	fancy_transition_switch_state(old_switch_i, g_fancy.switch_i);
+	fancy_transition_switch_state(old_switch_i, g_fancy.switch_state);
+}
+
+static void fancy_read_dht_sensor(void) {
+	float humi = 0;
+	const bool ok = DHT_readData(&g_dht11, &g_fancy.temp_dht.val, &humi);
+	g_fancy.temp_dht.is_valid = ok && (humi != 0);
 }
 
 static void fancy_cyclic(void) {
 	const uint32_t start_time_ms = HAL_GetTick();
 
 	fancy_heartbeat();
-	DHT_readData(&g_dht11, &g_fancy.temp, &g_fancy.humi);
+	fancy_read_dht_sensor();
 	fancy_tm1637_display_update();
 	fancy_periodic_alive_sound();
 	fancy_heartbeat();
-	fancy_cycle_switches();
+	//fancy_cycle_switches();
 
 	const uint32_t elapsed_time_ms = HAL_GetTick() - start_time_ms;
 	const uint32_t cycle_duration_ms = 1000;
@@ -392,7 +420,7 @@ void fancy(
 {
 	fancy_init(dht11_tim, buzzer_tim, buzzer_tim_channel);
 	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST, 200);
-	fancy_relay_switch_test();
+	//fancy_relay_switch_test();
 	while(1) {
 		fancy_cyclic();
 	}

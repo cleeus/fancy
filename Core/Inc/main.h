@@ -90,6 +90,8 @@ void Error_Handler(void);
 #define CH7_MOSFET_12V_GPIO_Port GPIOB
 #define CH7_MOSFET_ALTVOLT_Pin GPIO_PIN_13
 #define CH7_MOSFET_ALTVOLT_GPIO_Port GPIOB
+#define NTC_IN_Pin GPIO_PIN_9
+#define NTC_IN_GPIO_Port GPIOA
 #define TM1637_NCLK_Pin GPIO_PIN_3
 #define TM1637_NCLK_GPIO_Port GPIOB
 #define TM1637_NDIO_Pin GPIO_PIN_4
