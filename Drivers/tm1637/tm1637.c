@@ -249,10 +249,17 @@ tm1637_i32toa_n_OUTPUT:
   s[len-1] = '\0';
 }
 
-static void tm1637_ato7seg(uint8_t buffer[6], const char *str) {
+static void tm1637_ato7seg(uint8_t buffer[6], const char *str, const uint8_t length) {
   uint8_t index = 0;
-  for (uint8_t i=0; i < 7; i++) {
+  for (uint8_t i=0; i<length && index<6; i++) {
   	switch(str[i]) {
+  		case '\0':
+  			//fill output buffer with 0:
+  			for(;index<6;index++) {
+  				buffer[index]=0;
+  			}
+  			//outer loop abort condition index==6 now reached
+  			break;
   		case '-':
   			buffer[index] = _tm1637_minus;
   			index++;
@@ -321,7 +328,7 @@ void tm1637_write_int(tm1637_t *tm1637, int32_t digit, uint8_t pos)
   char str[7];
   uint8_t buffer[6] = {0};
   tm1637_i32toa_n(str, sizeof(str), digit, 1);
-  tm1637_ato7seg(buffer, str);
+  tm1637_ato7seg(buffer, str, sizeof(str));
   tm1637_write_raw(tm1637, buffer, 6, pos);
   tm1637_unlock(tm1637);
 }
@@ -357,7 +364,17 @@ void tm1637_write_fractional(tm1637_t *tm1637, char prefix, float digit, uint8_t
     }
   }
 
-  tm1637_ato7seg(buffer, str);
+  tm1637_ato7seg(buffer, str, sizeof(str));
+
+  tm1637_write_raw(tm1637, buffer, 6, pos);
+  tm1637_unlock(tm1637);
+}
+
+void tm1637_write_str(tm1637_t *tm1637, const char *str, uint8_t length, uint8_t pos) {
+  tm1637_lock(tm1637);
+  uint8_t buffer[6] = {0};
+
+  tm1637_ato7seg(buffer, str, length);
 
   tm1637_write_raw(tm1637, buffer, 6, pos);
   tm1637_unlock(tm1637);

@@ -10,6 +10,7 @@
 #include "tm1637.h"
 #include "dht.h"
 #include "fancy_rectrl.h"
+#include "fancy_ntc.h"
 
 static struct Fancy_t {
 	bool is_initialzed;
@@ -51,7 +52,8 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 static void fancy_init(
 		TIM_HandleTypeDef *dht11_tim,
 		TIM_HandleTypeDef *buzzer_tim,
-		uint8_t            buzzer_tim_channel)
+		uint8_t            buzzer_tim_channel,
+		ADC_HandleTypeDef *ntc_adc)
 {
 	//tm1637_init(&g_tm1637, TM1637_CLK_GPIO_Port, TM1637_CLK_Pin, TM1637_DIO_GPIO_Port, TM1637_DIO_Pin, TM1637_POLARITY_NORMAL_OD);
 	//tm1637_show_zero(&g_tm1637, true);
@@ -65,6 +67,8 @@ static void fancy_init(
 	g_fancy.buzzer_tim_channel = buzzer_tim_channel;
 
 	rectrl_init(&g_fancy.rectrl);
+
+	ntc_init(ntc_adc);
 
 	g_fancy.is_initialzed = true;
 }
@@ -95,10 +99,20 @@ static void fancy_tm1637_display_update(void) {
 
 	switch(value_cycle) {
 		case 0:
-			tm1637_write_fractional(&g_tm1637_INV, 'd', g_fancy.temp_dht.val, 1, 0);
+			if(g_fancy.temp_dht.is_valid) {
+				tm1637_write_fractional(&g_tm1637_INV, 'd', g_fancy.temp_dht.val, 1, 0);
+			} else {
+				const char d_invalid[] = "d---";
+				tm1637_write_str(&g_tm1637_INV, d_invalid, sizeof(d_invalid), 0);
+			}
 			break;
 		case 1:
-			tm1637_write_fractional(&g_tm1637_INV, 't', g_fancy.temp_ntc.val, 1, 0);
+			if(g_fancy.temp_ntc.is_valid) {
+				tm1637_write_fractional(&g_tm1637_INV, 't', g_fancy.temp_ntc.val, 1, 0);
+			} else {
+				const char t_invalid[] = "t---";
+				tm1637_write_str(&g_tm1637_INV, t_invalid, sizeof(t_invalid), 0);
+			}
 			break;
 		default:
 			value_cycle = 0;
@@ -375,11 +389,17 @@ static void fancy_read_dht_sensor(void) {
 	g_fancy.temp_dht.is_valid = ok && (humi != 0);
 }
 
+static void fancy_read_ntc_sensor(void) {
+	g_fancy.temp_ntc.val = ntc_get_degrees();
+	g_fancy.temp_ntc.is_valid = ntc_is_valid(g_fancy.temp_ntc.val);
+}
+
 static void fancy_cyclic(void) {
 	const uint32_t start_time_ms = HAL_GetTick();
 
 	fancy_heartbeat();
 	fancy_read_dht_sensor();
+	fancy_read_ntc_sensor();
 	fancy_tm1637_display_update();
 	fancy_periodic_alive_sound();
 	fancy_heartbeat();
@@ -416,9 +436,10 @@ static void fancy_relay_switch_test(void) {
 void fancy(
 		TIM_HandleTypeDef *dht11_tim,
 		TIM_HandleTypeDef *buzzer_tim,
-		uint8_t            buzzer_tim_channel)
+		uint8_t            buzzer_tim_channel,
+		ADC_HandleTypeDef *ntc_adc)
 {
-	fancy_init(dht11_tim, buzzer_tim, buzzer_tim_channel);
+	fancy_init(dht11_tim, buzzer_tim, buzzer_tim_channel, ntc_adc);
 	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST, 200);
 	//fancy_relay_switch_test();
 	while(1) {

@@ -42,6 +42,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+
 CAN_HandleTypeDef hcan;
 
 TIM_HandleTypeDef htim1;
@@ -57,6 +59,7 @@ static void MX_GPIO_Init(void);
 static void MX_CAN_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM4_Init(void);
+static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -97,13 +100,14 @@ int main(void)
   MX_CAN_Init();
   MX_TIM1_Init();
   MX_TIM4_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  fancy(&htim1, &htim4, TIM_CHANNEL_3);
+  fancy(&htim1, &htim4, TIM_CHANNEL_3, &hadc1);
   while (1)
   {
     /* USER CODE END WHILE */
@@ -121,6 +125,7 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
@@ -147,6 +152,59 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
+  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV2;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Common config
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_9;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
@@ -302,11 +360,11 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, RELAY_K1_Pin|RELAY_K2_Pin|RELAY_K3_Pin|RELAY_K4_Pin
-                          |RELAY_K5_Pin|RELAY_K6_Pin|RELAY_K7_Pin|RELAY_K8_Pin, GPIO_PIN_RESET);
+                          |RELAY_K5_Pin|RELAY_K6_Pin|RELAY_K7_Pin|RELAY_K8_Pin
+                          |ALTVOLT_MOSFET_2_Pin|ALTVOLT_MOSFET_1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, RELAY_OE_Pin|ALTVOLT_MOSFET_1_Pin|ALTVOLT_MOSFET_2_Pin|CH7_MOSFET_ALTVOLT_Pin
-                          |TM1637_NCLK_Pin|TM1637_NDIO_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, RELAY_OE_Pin|CH7_MOSFET_ALTVOLT_Pin|TM1637_NCLK_Pin|TM1637_NDIO_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CH7_MOSFET_12V_GPIO_Port, CH7_MOSFET_12V_Pin, GPIO_PIN_SET);
@@ -319,18 +377,20 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(LED_PC13_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : RELAY_K1_Pin RELAY_K2_Pin RELAY_K3_Pin RELAY_K4_Pin
-                           RELAY_K5_Pin RELAY_K6_Pin RELAY_K7_Pin RELAY_K8_Pin */
+                           RELAY_K5_Pin RELAY_K6_Pin RELAY_K7_Pin RELAY_K8_Pin
+                           ALTVOLT_MOSFET_2_Pin ALTVOLT_MOSFET_1_Pin */
   GPIO_InitStruct.Pin = RELAY_K1_Pin|RELAY_K2_Pin|RELAY_K3_Pin|RELAY_K4_Pin
-                          |RELAY_K5_Pin|RELAY_K6_Pin|RELAY_K7_Pin|RELAY_K8_Pin;
+                          |RELAY_K5_Pin|RELAY_K6_Pin|RELAY_K7_Pin|RELAY_K8_Pin
+                          |ALTVOLT_MOSFET_2_Pin|ALTVOLT_MOSFET_1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : RELAY_OE_Pin ALTVOLT_MOSFET_1_Pin ALTVOLT_MOSFET_2_Pin CH7_MOSFET_12V_Pin
-                           CH7_MOSFET_ALTVOLT_Pin TM1637_NCLK_Pin TM1637_NDIO_Pin */
-  GPIO_InitStruct.Pin = RELAY_OE_Pin|ALTVOLT_MOSFET_1_Pin|ALTVOLT_MOSFET_2_Pin|CH7_MOSFET_12V_Pin
-                          |CH7_MOSFET_ALTVOLT_Pin|TM1637_NCLK_Pin|TM1637_NDIO_Pin;
+  /*Configure GPIO pins : RELAY_OE_Pin CH7_MOSFET_12V_Pin CH7_MOSFET_ALTVOLT_Pin TM1637_NCLK_Pin
+                           TM1637_NDIO_Pin */
+  GPIO_InitStruct.Pin = RELAY_OE_Pin|CH7_MOSFET_12V_Pin|CH7_MOSFET_ALTVOLT_Pin|TM1637_NCLK_Pin
+                          |TM1637_NDIO_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -341,11 +401,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(DHT11_DATA_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : NTC_IN_Pin */
-  GPIO_InitStruct.Pin = NTC_IN_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  HAL_GPIO_Init(NTC_IN_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
