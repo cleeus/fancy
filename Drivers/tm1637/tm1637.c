@@ -16,15 +16,63 @@
 #define TM1637_COMM2    0xC0
 #define TM1637_COMM3    0x80
 
-const uint8_t _tm1637_digit[] =
-  {0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f};
-const uint8_t _tm1637_on[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-const uint8_t _tm1637_off[6] = {0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
-const uint8_t fill_off[4] = {0x00, 0x00, 0x00, 0x00};
-const uint8_t _tm1637_minus = 0x40;
-const uint8_t _tm1637_dot = 0x80;  
+
+/*
+ * standard 7seg bit/segment positions:
+ *                           5 (top) = 0x20
+ *                         +---+
+ * 4 (left top)    = 0x10  |   | 0 (right top) = 0x01
+ *                         +---+ 6 (middle line) = 0x40
+ * 3 (left bottom) = 0x08  |   | 1 (right bottom) = 0x02
+ *                         +---+ . 7 (dot) = 0x80
+ *                           2 (bottom) = 0x04
+ */
+
+
+
+static const uint8_t _tm1637_digit[] = {
+		[0] = TM1637_LEFT_BOTTOM | TM1637_LEFT_TOP | TM1637_TOP | TM1637_RIGHT_TOP | TM1637_RIGHT_BOTTOM | TM1637_BOTTOM,
+		[1] = TM1637_RIGHT_TOP | TM1637_RIGHT_BOTTOM,
+		[2] = TM1637_TOP | TM1637_RIGHT_TOP | TM1637_MIDDLE | TM1637_LEFT_BOTTOM | TM1637_BOTTOM,
+		[3] = TM1637_TOP | TM1637_RIGHT_TOP | TM1637_MIDDLE | TM1637_RIGHT_BOTTOM | TM1637_BOTTOM,
+		[4] = TM1637_LEFT_TOP | TM1637_MIDDLE | TM1637_RIGHT_TOP | TM1637_RIGHT_BOTTOM,
+		[5] = TM1637_TOP | TM1637_LEFT_TOP | TM1637_MIDDLE | TM1637_RIGHT_BOTTOM | TM1637_BOTTOM,
+		[6] = TM1637_LEFT_TOP | TM1637_LEFT_BOTTOM | TM1637_BOTTOM | TM1637_RIGHT_BOTTOM | TM1637_MIDDLE,
+		[7] = TM1637_TOP | TM1637_RIGHT_TOP | TM1637_RIGHT_BOTTOM,
+		[8] = TM1637_TOP | TM1637_MIDDLE | TM1637_BOTTOM | TM1637_LEFT_TOP | TM1637_LEFT_BOTTOM | TM1637_RIGHT_TOP | TM1637_RIGHT_BOTTOM,
+		[9] = TM1637_RIGHT_BOTTOM | TM1637_RIGHT_TOP | TM1637_TOP | TM1637_LEFT_TOP | TM1637_MIDDLE
+};
+static const uint8_t _tm1637_on[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+static const uint8_t _tm1637_off[6] = {0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
+static const uint8_t _tm1637_minus = TM1637_MIDDLE;
+static const uint8_t _tm1637_dot = TM1637_DOT;
+static const uint8_t _tm1637_degrees = TM1637_TOP | TM1637_RIGHT_TOP | TM1637_MIDDLE | TM1637_LEFT_TOP;
+static const uint8_t _tm1637_apostrophe = TM1637_RIGHT_TOP;
+static const uint8_t _tm1637_uscore = TM1637_BOTTOM;
+static const uint8_t _tm1637_chars_lower['z'-'a'] = {
+		['d'-'a'] = TM1637_RIGHT_TOP | TM1637_RIGHT_BOTTOM | TM1637_BOTTOM | TM1637_LEFT_BOTTOM | TM1637_MIDDLE,
+		['o'-'a'] = TM1637_MIDDLE | TM1637_RIGHT_BOTTOM | TM1637_BOTTOM | TM1637_LEFT_BOTTOM,
+		['c'-'a'] = TM1637_BOTTOM | TM1637_LEFT_BOTTOM | TM1637_MIDDLE,
+		['t'-'a'] = TM1637_LEFT_TOP | TM1637_MIDDLE | TM1637_LEFT_BOTTOM | TM1637_BOTTOM,
+		['i'-'a'] = TM1637_LEFT_BOTTOM,
+		['b'-'a'] = TM1637_LEFT_TOP | TM1637_LEFT_BOTTOM | TM1637_MIDDLE | TM1637_RIGHT_BOTTOM | TM1637_BOTTOM,
+};
+static const uint8_t _tm1637_chars_UPPER['Z'-'A'] = {
+		['A'-'A'] = TM1637_LEFT_BOTTOM | TM1637_LEFT_TOP | TM1637_TOP | TM1637_RIGHT_TOP | TM1637_RIGHT_BOTTOM | TM1637_MIDDLE,
+		['C'-'A'] = TM1637_BOTTOM | TM1637_LEFT_BOTTOM | TM1637_LEFT_TOP | TM1637_TOP,
+		['E'-'A'] = TM1637_BOTTOM | TM1637_LEFT_BOTTOM | TM1637_MIDDLE | TM1637_LEFT_TOP | TM1637_TOP,
+		['F'-'A'] = TM1637_LEFT_BOTTOM | TM1637_MIDDLE | TM1637_LEFT_TOP | TM1637_TOP,
+		['H'-'A'] = TM1637_LEFT_BOTTOM | TM1637_LEFT_TOP | TM1637_MIDDLE | TM1637_RIGHT_BOTTOM | TM1637_RIGHT_TOP,
+		['I'-'A'] = TM1637_LEFT_BOTTOM | TM1637_LEFT_TOP,
+		['J'-'A'] = TM1637_RIGHT_TOP | TM1637_RIGHT_BOTTOM | TM1637_BOTTOM,
+		['L'-'A'] = TM1637_LEFT_TOP | TM1637_LEFT_BOTTOM | TM1637_BOTTOM,
+		['P'-'A'] = TM1637_LEFT_TOP | TM1637_LEFT_BOTTOM | TM1637_TOP | TM1637_RIGHT_TOP | TM1637_MIDDLE,
+		['U'-'A'] = TM1637_LEFT_TOP | TM1637_LEFT_BOTTOM | TM1637_BOTTOM | TM1637_RIGHT_TOP | TM1637_RIGHT_BOTTOM,
+};
+
+
 //#######################################################################################################################
-void tm1637_delay_us(uint8_t delay)
+static void tm1637_delay_us(uint8_t delay)
 {
   while (delay > 0)
   {
@@ -36,13 +84,13 @@ void tm1637_delay_us(uint8_t delay)
   }
 }
 //#######################################################################################################################
-void tm1637_start(tm1637_t *tm1637)
+static void tm1637_start(tm1637_t *tm1637)
 {
   HAL_GPIO_WritePin(tm1637->gpio_dat, tm1637->pin_dat, tm1637->gpio_reset);
   tm1637_delay_us(_TM1637_BIT_DELAY);
 }
 //#######################################################################################################################
-void tm1637_stop(tm1637_t *tm1637)
+static void tm1637_stop(tm1637_t *tm1637)
 {
   HAL_GPIO_WritePin(tm1637->gpio_dat, tm1637->pin_dat, tm1637->gpio_reset);
   tm1637_delay_us(_TM1637_BIT_DELAY);
@@ -52,7 +100,7 @@ void tm1637_stop(tm1637_t *tm1637)
   tm1637_delay_us(_TM1637_BIT_DELAY);
 }
 //#######################################################################################################################
-uint8_t tm1637_write_byte(tm1637_t *tm1637, uint8_t data)
+static uint8_t tm1637_write_byte(tm1637_t *tm1637, uint8_t data)
 {
   //  write 8 bit data
   for (uint8_t i = 0; i < 8; i++)
@@ -83,14 +131,14 @@ uint8_t tm1637_write_byte(tm1637_t *tm1637, uint8_t data)
   return ack;
 }
 //#######################################################################################################################
-void tm1637_lock(tm1637_t *tm1637)
+static void tm1637_lock(tm1637_t *tm1637)
 {
   while (tm1637->lock == 1)
     tm1637_delay_ms(1);
   tm1637->lock = 1;  
 }
 //#######################################################################################################################
-void tm1637_unlock(tm1637_t *tm1637)
+static void tm1637_unlock(tm1637_t *tm1637)
 {
   tm1637->lock = 0;  
 }
@@ -133,7 +181,7 @@ void tm1637_brightness(tm1637_t *tm1637, uint8_t brightness_0_to_7)
   tm1637_unlock(tm1637);
 }
 //#######################################################################################################################
-void tm1637_write_raw(tm1637_t *tm1637, const uint8_t *raw, uint8_t length, uint8_t pos)
+static void tm1637_write_raw(tm1637_t *tm1637, const uint8_t *raw, uint8_t length, uint8_t pos)
 {
   if (pos > 5)
     return;
@@ -222,10 +270,44 @@ static void tm1637_ato7seg(uint8_t buffer[6], const char *str) {
         buffer[index] = _tm1637_digit[str[i] - '0'];
         index++;
         break;
+  		case 'd':
+  		case 'o':
+  		case 'c':
+  		case 't':
+  		case 'i':
+  		case 'b':
+  			buffer[index] = _tm1637_chars_lower[str[i]-'a'];
+  			index++;
+  			break;
+  		case 'A':
+  		case 'C':
+  		case 'E':
+  		case 'F':
+  		case 'H':
+  		case 'I':
+  		case 'J':
+  		case 'L':
+  		case 'P':
+  		case 'U':
+  			buffer[index] = _tm1637_chars_UPPER[str[i]-'A'];
+  			index++;
+  			break;
   		case '.':
         if (index > 0)
           buffer[index - 1] |= _tm1637_dot;
         break;
+  		case '\'':
+  			buffer[index] = _tm1637_apostrophe;
+  			index++;
+  			break;
+  		case (char)(0xBA): //degrees sign in windows CP-1252
+  			buffer[index] = _tm1637_degrees;
+  			index++;
+  			break;
+  		case '_':
+  			buffer[index] = _tm1637_uscore;
+  			index++;
+  			break;
   		default:
   			buffer[index] = 0;
   			break;
@@ -245,14 +327,21 @@ void tm1637_write_int(tm1637_t *tm1637, int32_t digit, uint8_t pos)
 }
 
 
-void tm1637_write_fractional(tm1637_t *tm1637, float digit, uint8_t floating_digit, uint8_t pos)
+void tm1637_write_fractional(tm1637_t *tm1637, char prefix, float digit, uint8_t floating_digit, uint8_t pos)
 {
   tm1637_lock(tm1637);
   char str[32];
   uint8_t buffer[6] = {0};
   const int16_t  digit_int   =  digit;
   const uint16_t digit_fract = (digit - digit_int) * 10 * floating_digit;
-  tm1637_i32toa_n(str, sizeof(str), digit_int, 1);
+
+  if(prefix != '\0') {
+  	str[0] = prefix;
+  	str[1] = '\0';
+    tm1637_i32toa_n(str+1, sizeof(str)-1, digit_int, 1);
+  } else {
+    tm1637_i32toa_n(str, sizeof(str), digit_int, 1);
+  }
   strncat(str, ".", sizeof(str)-1);
   const size_t len = strnlen(str, sizeof(str));
   tm1637_i32toa_n(&str[len], sizeof(str)-len, digit_fract, 1);

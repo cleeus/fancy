@@ -46,12 +46,25 @@ typedef struct
   uint16_t              pin_clk;   
   uint16_t              pin_dat;  
   
-}tm1637_t;
+} tm1637_t;
 
 typedef enum {
 	TM1637_POLARITY_NORMAL_OD,
 	TM1637_POLARITY_INV_PP
 } TM1637_Polarity;
+
+
+enum TM1637_SegmentBits {
+	TM1637_TOP          = 0x01,
+	TM1637_RIGHT_TOP    = 0x02,
+	TM1637_RIGHT_BOTTOM = 0x04,
+	TM1637_BOTTOM       = 0x08,
+	TM1637_LEFT_BOTTOM  = 0x10,
+	TM1637_LEFT_TOP     = 0x20,
+	TM1637_MIDDLE       = 0x40,
+	TM1637_DOT          = 0x80
+};
+
 //####################################################################################################################
 
 void tm1637_init(tm1637_t *tm1637, GPIO_TypeDef *gpio_clk, uint16_t pin_clk, GPIO_TypeDef *gpio_dat, uint16_t pin_dat, TM1637_Polarity polarity);
@@ -59,7 +72,7 @@ void tm1637_brightness(tm1637_t *tm1637, uint8_t brightness_0_to_7);
 void tm1637_write_segment(tm1637_t *tm1637, const uint8_t *segments, uint8_t length, uint8_t pos);
 void tm1637_write_int(tm1637_t *tm1637, int32_t digit, uint8_t pos);
 //void tm1637_write_float(tm1637_t *tm1637, float digit, uint8_t floating_digit, uint8_t pos);
-void tm1637_write_fractional(tm1637_t *tm1637, float digit, uint8_t floating_digit, uint8_t pos);
+void tm1637_write_fractional(tm1637_t *tm1637, char prefix, float digit, uint8_t floating_digit, uint8_t pos);
 void tm1637_show_zero(tm1637_t *tm1637, bool enable);
 void tm1637_fill(tm1637_t *tm1637, bool enable);
 //####################################################################################################################
