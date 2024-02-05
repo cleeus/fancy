@@ -50,12 +50,13 @@ static const uint8_t _tm1637_degrees = TM1637_TOP | TM1637_RIGHT_TOP | TM1637_MI
 static const uint8_t _tm1637_apostrophe = TM1637_RIGHT_TOP;
 static const uint8_t _tm1637_uscore = TM1637_BOTTOM;
 static const uint8_t _tm1637_chars_lower['z'-'a'] = {
-		['d'-'a'] = TM1637_RIGHT_TOP | TM1637_RIGHT_BOTTOM | TM1637_BOTTOM | TM1637_LEFT_BOTTOM | TM1637_MIDDLE,
-		['o'-'a'] = TM1637_MIDDLE | TM1637_RIGHT_BOTTOM | TM1637_BOTTOM | TM1637_LEFT_BOTTOM,
-		['c'-'a'] = TM1637_BOTTOM | TM1637_LEFT_BOTTOM | TM1637_MIDDLE,
-		['t'-'a'] = TM1637_LEFT_TOP | TM1637_MIDDLE | TM1637_LEFT_BOTTOM | TM1637_BOTTOM,
-		['i'-'a'] = TM1637_LEFT_BOTTOM,
 		['b'-'a'] = TM1637_LEFT_TOP | TM1637_LEFT_BOTTOM | TM1637_MIDDLE | TM1637_RIGHT_BOTTOM | TM1637_BOTTOM,
+		['c'-'a'] = TM1637_BOTTOM | TM1637_LEFT_BOTTOM | TM1637_MIDDLE,
+		['d'-'a'] = TM1637_RIGHT_TOP | TM1637_RIGHT_BOTTOM | TM1637_BOTTOM | TM1637_LEFT_BOTTOM | TM1637_MIDDLE,
+		['i'-'a'] = TM1637_LEFT_BOTTOM,
+		['o'-'a'] = TM1637_MIDDLE | TM1637_RIGHT_BOTTOM | TM1637_BOTTOM | TM1637_LEFT_BOTTOM,
+		['t'-'a'] = TM1637_LEFT_TOP | TM1637_MIDDLE | TM1637_LEFT_BOTTOM | TM1637_BOTTOM,
+		['u'-'a'] = TM1637_LEFT_BOTTOM | TM1637_BOTTOM | TM1637_RIGHT_BOTTOM,
 };
 static const uint8_t _tm1637_chars_UPPER['Z'-'A'] = {
 		['A'-'A'] = TM1637_LEFT_BOTTOM | TM1637_LEFT_TOP | TM1637_TOP | TM1637_RIGHT_TOP | TM1637_RIGHT_BOTTOM | TM1637_MIDDLE,
@@ -277,12 +278,13 @@ static void tm1637_ato7seg(uint8_t buffer[6], const char *str, const uint8_t len
         buffer[index] = _tm1637_digit[str[i] - '0'];
         index++;
         break;
-  		case 'd':
-  		case 'o':
-  		case 'c':
-  		case 't':
-  		case 'i':
   		case 'b':
+  		case 'c':
+  		case 'd':
+  		case 'i':
+  		case 'o':
+  		case 't':
+  		case 'u':
   			buffer[index] = _tm1637_chars_lower[str[i]-'a'];
   			index++;
   			break;
@@ -340,7 +342,11 @@ void tm1637_write_fractional(tm1637_t *tm1637, char prefix, float digit, uint8_t
   char str[32];
   uint8_t buffer[6] = {0};
   const int16_t  digit_int   =  digit;
-  const uint16_t digit_fract = (digit - digit_int) * 10 * floating_digit;
+  uint16_t fract_factor = 1;
+  for(;floating_digit!=0;floating_digit--) {
+  	fract_factor *= 10;
+  }
+  const uint16_t digit_fract = (digit - digit_int) * fract_factor;
 
   if(prefix != '\0') {
   	str[0] = prefix;

@@ -6,24 +6,24 @@
  */
 #include <stdbool.h>
 #include <assert.h>
+#include "fancy_adctemp.h"
 #include "main.h"
 #include "tm1637.h"
 #include "dht.h"
 #include "fancy_rectrl.h"
-#include "fancy_ntc.h"
+
+struct measurement_t {
+	float val;
+	bool is_valid;
+};
 
 static struct Fancy_t {
 	bool is_initialzed;
 
-	struct {
-		float val;
-		bool is_valid;
-	} temp_dht;
-
-	struct {
-		float val;
-		bool is_valid;
-	} temp_ntc;
+	struct measurement_t temp_dht;
+	struct measurement_t temp_ntc;
+	struct measurement_t temp_core;
+	struct measurement_t vdda;
 
 	rectrl_t rectrl;
 	int8_t switch_state;
@@ -31,7 +31,7 @@ static struct Fancy_t {
 	TIM_HandleTypeDef *buzzer_tim;
 	uint8_t            buzzer_tim_channel;
 
-	struct ntc_t ntc;
+	struct adctemp_t adctemp;
 
 } g_fancy = {0};
 
@@ -69,7 +69,7 @@ static void fancy_init(
 
 	rectrl_init(&g_fancy.rectrl);
 
-	ntc_init(&g_fancy.ntc, ntc_adc);
+	adctemp_init(&g_fancy.adctemp, ntc_adc);
 
 	g_fancy.is_initialzed = true;
 }
@@ -115,6 +115,23 @@ static void fancy_tm1637_display_update(void) {
 				tm1637_write_str(&g_tm1637_INV, t_invalid, sizeof(t_invalid), 0);
 			}
 			break;
+		case 2:
+			if(g_fancy.temp_core.is_valid) {
+				tm1637_write_fractional(&g_tm1637_INV, 'c', g_fancy.temp_core.val, 1, 0);
+			} else {
+				const char c_invalid[] = "c---";
+				tm1637_write_str(&g_tm1637_INV, c_invalid, sizeof(c_invalid), 0);
+			}
+			break;
+		case 3:
+			if(g_fancy.vdda.is_valid) {
+				tm1637_write_fractional(&g_tm1637_INV, 'u', g_fancy.vdda.val, 2, 0);
+			} else {
+				const char u_invalid[] = "u---";
+				tm1637_write_str(&g_tm1637_INV, u_invalid, sizeof(u_invalid), 0);
+			}
+			break;
+
 		default:
 			value_cycle = 0;
 			break;
@@ -390,9 +407,19 @@ static void fancy_read_dht_sensor(void) {
 	g_fancy.temp_dht.is_valid = ok && (humi != 0);
 }
 
-static void fancy_read_ntc_sensor(void) {
-	g_fancy.temp_ntc.val = ntc_measure_degC(&g_fancy.ntc);
-	g_fancy.temp_ntc.is_valid = ntc_is_valid(g_fancy.temp_ntc.val);
+static void fancy_read_adc_sensors(void) {
+	struct adctemp_measurement_t result;
+
+	adctemp_measure(&g_fancy.adctemp, &result);
+
+	g_fancy.temp_ntc.val = result.ntc_degC;
+	g_fancy.temp_ntc.is_valid = result.ntc_degC_is_valid;
+
+	g_fancy.temp_core.val = result.core_degC;
+	g_fancy.temp_core.is_valid = result.ntc_degC_is_valid;
+
+	g_fancy.vdda.val = result.vdda_V;
+	g_fancy.vdda.is_valid = result.vdda_V_is_valid;
 }
 
 static void fancy_cyclic(void) {
@@ -400,7 +427,8 @@ static void fancy_cyclic(void) {
 
 	fancy_heartbeat();
 	fancy_read_dht_sensor();
-	fancy_read_ntc_sensor();
+	fancy_read_adc_sensors();
+	HAL_Delay(1);
 	fancy_tm1637_display_update();
 	fancy_periodic_alive_sound();
 	fancy_heartbeat();
