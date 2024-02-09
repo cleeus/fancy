@@ -19,11 +19,11 @@
 
 int64_t fancy_gettick(void) {
 	static uint32_t hal_last_ticks = 0;
-	static uint64_t fancy_ticks = 0;
+	static int64_t fancy_ticks = 0;
 
 	const uint32_t hal_ticks = HAL_GetTick();
 
-	fancy_ticks += hal_ticks - hal_last_ticks;
+	fancy_ticks += (int32_t)(hal_ticks - hal_last_ticks);
 	hal_last_ticks = hal_ticks;
 
 	return fancy_ticks;
@@ -49,6 +49,11 @@ struct fancy_lpfilt_t {
 	float coef;
 };
 
+enum SensorFusionLevel {
+	SFL_FUNCTIONING = 0,
+	SFL_DEGRADED = 1,
+	SFL_DEFUNCT = 2
+};
 
 static struct Fancy_t {
 	bool is_initialzed;
@@ -59,11 +64,14 @@ static struct Fancy_t {
 	struct fancy_measurements_t msm_filtered;
 	struct measurement_t temp_fused;
 	struct measurement_t temp_fused_filtered;
+	enum SensorFusionLevel temp_fusion_level;
+	int64_t                temp_fusion_level_time;
 
 	struct fancy_lpfilt_t filt_temp_core;
 	struct fancy_lpfilt_t filt_temp_ntc;
 	struct fancy_lpfilt_t filt_temp_dht;
 	struct fancy_lpfilt_t filt_temp;
+
 
 	rectrl_t rectrl;
 	int8_t switch_state;
@@ -113,19 +121,41 @@ static void fancy_init(
 
 
 	g_fancy.filt_temp_dht.state = NAN;
-	g_fancy.filt_temp_dht.coef = 0.7f;
+	g_fancy.filt_temp_dht.coef = 1.3f;
 
 	g_fancy.filt_temp_ntc.state = NAN;
-	g_fancy.filt_temp_ntc.coef = 0.7f;
+	g_fancy.filt_temp_ntc.coef = 1.3f;
 
 	g_fancy.filt_temp_core.state = NAN;
-	g_fancy.filt_temp_core.coef = 0.7f;
+	g_fancy.filt_temp_core.coef = 1.3f;
 
 	g_fancy.filt_temp.state = NAN;
-	g_fancy.filt_temp.coef = 1.5f;
+	g_fancy.filt_temp.coef = 1.7f;
 
 
 	g_fancy.is_initialzed = true;
+}
+
+static bool fancy_is_panicked(void) {
+	if(g_fancy.temp_fusion_level == SFL_DEFUNCT) {
+		const int64_t now = fancy_gettick();
+		const int64_t defunct_duration_ms = (now - g_fancy.temp_fusion_level_time);
+		if(defunct_duration_ms > 5000) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool fancy_is_degraded(void) {
+	if(g_fancy.temp_fusion_level == SFL_DEGRADED) {
+		const int64_t now = fancy_gettick();
+		const int64_t degraded_duration_ms = (now - g_fancy.temp_fusion_level_time);
+		if(degraded_duration_ms > 10000) {
+			return true;
+		}
+	}
+	return false;
 }
 
 static void fancy_heartbeat(void) {
@@ -260,6 +290,13 @@ static void fancy_sensor_filters(void) {
 	g_fancy.msm_filtered.temp_core.is_valid = g_fancy.msm_checked.temp_core.is_valid;
 }
 
+static void fancy_update_sensor_fusion_level(enum SensorFusionLevel const level) {
+	if(level != g_fancy.temp_fusion_level) {
+		g_fancy.temp_fusion_level = level;
+		g_fancy.temp_fusion_level_time = fancy_gettick();
+	}
+}
+
 static void fancy_sensor_fusion(void) {
 	const float weight_core = 0.7f;
 	const float weight_ntc = 1.3f;
@@ -277,6 +314,7 @@ static void fancy_sensor_fusion(void) {
 				 + g_fancy.msm_filtered.temp_ntc.val * weight_ntc) * inv_weight_sum;
 		g_fancy.temp_fused.is_valid = true;
 		g_fancy.temp_fused.time = min(min(g_fancy.msm_filtered.temp_core.time, g_fancy.msm_filtered.temp_dht.time), g_fancy.msm_filtered.temp_ntc.time);
+		fancy_update_sensor_fusion_level(SFL_FUNCTIONING);
 	}
 	else {
 		const struct measurement_t * in[3];
@@ -305,16 +343,21 @@ static void fancy_sensor_fusion(void) {
 						 + in[1]->val * weight[1]) * inv_weight_sum;
 			g_fancy.temp_fused.is_valid = true;
 			g_fancy.temp_fused.time = min(in[0]->time, in[1]->time);
+
+			fancy_update_sensor_fusion_level(SFL_DEGRADED);
 		} else if(mcount == 1) {
 			g_fancy.temp_fused = *in[0];
+			fancy_update_sensor_fusion_level(SFL_DEGRADED);
 		} else if(mcount == 0) {
 			g_fancy.temp_fused.is_valid = false;
+			fancy_update_sensor_fusion_level(SFL_DEFUNCT);
 		}
 	}
 
-	fancy_sensor_filter_apply(&g_fancy.filt_temp,  &g_fancy.temp_fused,  &g_fancy.temp_fused_filtered);
+	if(g_fancy.temp_fused.is_valid) {
+		fancy_sensor_filter_apply(&g_fancy.filt_temp,  &g_fancy.temp_fused,  &g_fancy.temp_fused_filtered);
+	}
 	g_fancy.temp_fused_filtered.is_valid = g_fancy.temp_fused.is_valid;
-
 }
 
 enum BuzzerFreqs {
@@ -605,19 +648,45 @@ static void fancy_read_adc_sensors(void) {
 	g_fancy.msm_raw.vdda.time = fancy_gettick();
 }
 
+static void fancy_degraded_alarm(void) {
+	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST, 200);
+	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST/2, 100);
+	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST*2, 100);
+}
+
+static void fancy_panic_alarm(void) {
+	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST, 200);
+	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST/2, 100);
+	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST*2, 100);
+	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST, 200);
+	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST/2, 100);
+	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST*2, 100);
+	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST, 100);
+	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST/2, 50);
+	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST*2, 50);
+}
+
 static void fancy_cyclic(void) {
 	const uint32_t start_time_ms = HAL_GetTick();
 
 	fancy_heartbeat();
 	fancy_read_dht_sensor();
 	fancy_read_adc_sensors();
+
 	fancy_sensor_range_checks();
 	fancy_sensor_filters();
 	fancy_sensor_fusion();
 
 	HAL_Delay(1);
 	fancy_tm1637_display_update();
-	fancy_periodic_alive_sound();
+
+	if(fancy_is_degraded()) {
+		fancy_degraded_alarm();
+	} else if(fancy_is_panicked()) {
+		fancy_panic_alarm();
+	} else {
+		fancy_periodic_alive_sound();
+	}
 	fancy_heartbeat();
 	//fancy_cycle_switches();
 
