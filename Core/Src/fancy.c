@@ -1,9 +1,3 @@
-/*
- * fancy.c
- *
- *  Created on: Jan 13, 2024
- *      Author: kai.dietrich
- */
 #include <stdbool.h>
 #include <assert.h>
 #include <math.h>
@@ -12,22 +6,11 @@
 #include "tm1637.h"
 #include "dht.h"
 #include "fancy_rectrl.h"
+#include "fancy_regulator.h"
+#include "fancy_ticks.h"
 
 #define max(a,b) ((a) > (b) ? (a) : (b))
 #define min(a,b) ((a) < (b) ? (a) : (b))
-
-
-int64_t fancy_gettick(void) {
-	static uint32_t hal_last_ticks = 0;
-	static int64_t fancy_ticks = 0;
-
-	const uint32_t hal_ticks = HAL_GetTick();
-
-	fancy_ticks += (int32_t)(hal_ticks - hal_last_ticks);
-	hal_last_ticks = hal_ticks;
-
-	return fancy_ticks;
-}
 
 
 struct measurement_t {
@@ -35,7 +18,6 @@ struct measurement_t {
 	bool is_valid;
 	int64_t time;
 };
-
 
 struct fancy_measurements_t {
 	struct measurement_t temp_dht;
@@ -56,7 +38,7 @@ enum SensorFusionLevel {
 };
 
 static struct Fancy_t {
-	bool is_initialzed;
+	bool is_initialized;
 
 	struct fancy_measurements_t msm_raw;
 	struct fancy_measurements_t msm_checked;
@@ -72,6 +54,7 @@ static struct Fancy_t {
 	struct fancy_lpfilt_t filt_temp_dht;
 	struct fancy_lpfilt_t filt_temp;
 
+	struct FancyRegulator_t regulator;
 
 	rectrl_t rectrl;
 	int8_t switch_state;
@@ -89,7 +72,7 @@ static DHT_t    g_dht11;
 
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-	if(!g_fancy.is_initialzed) {
+	if(!g_fancy.is_initialized) {
 		return;
 	}
 
@@ -132,8 +115,10 @@ static void fancy_init(
 	g_fancy.filt_temp.state = NAN;
 	g_fancy.filt_temp.coef = 1.7f;
 
+	fancy_regulator_init(&g_fancy.regulator);
+	g_fancy.switch_state = 0;
 
-	g_fancy.is_initialzed = true;
+	g_fancy.is_initialized = true;
 }
 
 static bool fancy_is_panicked(void) {
@@ -192,6 +177,9 @@ static void fancy_tm1637_display_update(void) {
 			}
 			break;
 		case 1:
+			tm1637_write_fractional(&g_tm1637_INV, 'L', g_fancy.switch_state, 0, 0);
+			break;
+		case 2:
 			if(g_fancy.msm_raw.temp_dht.is_valid) {
 				tm1637_write_fractional(&g_tm1637_INV, 'd', g_fancy.msm_raw.temp_dht.val, 1, 0);
 			} else {
@@ -199,7 +187,7 @@ static void fancy_tm1637_display_update(void) {
 				tm1637_write_str(&g_tm1637_INV, d_invalid, sizeof(d_invalid), 0);
 			}
 			break;
-		case 2:
+		case 3:
 			if(g_fancy.msm_raw.temp_ntc.is_valid) {
 				tm1637_write_fractional(&g_tm1637_INV, 't', g_fancy.msm_raw.temp_ntc.val, 1, 0);
 			} else {
@@ -207,7 +195,7 @@ static void fancy_tm1637_display_update(void) {
 				tm1637_write_str(&g_tm1637_INV, t_invalid, sizeof(t_invalid), 0);
 			}
 			break;
-		case 3:
+		case 4:
 			if(g_fancy.msm_raw.temp_core.is_valid) {
 				tm1637_write_fractional(&g_tm1637_INV, 'c', g_fancy.msm_raw.temp_core.val, 1, 0);
 			} else {
@@ -215,7 +203,7 @@ static void fancy_tm1637_display_update(void) {
 				tm1637_write_str(&g_tm1637_INV, c_invalid, sizeof(c_invalid), 0);
 			}
 			break;
-		case 4:
+		case 5:
 			if(g_fancy.msm_raw.vdda.is_valid) {
 				tm1637_write_fractional(&g_tm1637_INV, 'u', g_fancy.msm_raw.vdda.val, 2, 0);
 			} else {
@@ -299,7 +287,7 @@ static void fancy_update_sensor_fusion_level(enum SensorFusionLevel const level)
 
 static void fancy_sensor_fusion(void) {
 	const float weight_core = 0.7f;
-	const float weight_ntc = 1.3f;
+	const float weight_ntc = 1.5f;
 	const float weight_dht = 1.0f;
 
 	if(g_fancy.msm_filtered.temp_core.is_valid
@@ -687,6 +675,26 @@ static void fancy_cyclic(void) {
 	} else {
 		fancy_periodic_alive_sound();
 	}
+
+	if(fancy_is_panicked()) {
+		const int max_switch_state = sizeof(fancy_switchconf)/sizeof(fancy_switchconf[0])-1;
+		fancy_transition_switch_state(g_fancy.switch_state, max_switch_state);
+		g_fancy.switch_state = max_switch_state;
+	} else if(g_fancy.temp_fused_filtered.is_valid) {
+		const int max_switch_state = sizeof(fancy_switchconf)/sizeof(fancy_switchconf[0])-1;
+		const int switch_step = fancy_regulate(&g_fancy.regulator, g_fancy.temp_fused_filtered.val);
+		//const int switch_step = fancy_regulate(&g_fancy.regulator, g_fancy.msm_filtered.temp_ntc.val); //for testing
+		int new_switch_state = g_fancy.switch_state + switch_step;
+		if(new_switch_state < 0) {
+			new_switch_state = 0;
+		}
+		if(new_switch_state > max_switch_state) {
+			new_switch_state = max_switch_state;
+		}
+		fancy_transition_switch_state(g_fancy.switch_state, new_switch_state);
+		g_fancy.switch_state = new_switch_state;
+	}
+
 	fancy_heartbeat();
 	//fancy_cycle_switches();
 
@@ -726,6 +734,10 @@ void fancy(
 {
 	fancy_init(dht11_tim, buzzer_tim, buzzer_tim_channel, ntc_adc);
 	fancy_buzzer_sound(BUZZER_FREQ_LOUDEST, 200);
+
+	fancy_transition_switch_state(0, 7);
+	g_fancy.switch_state = 7;
+
 	//fancy_relay_switch_test();
 	while(1) {
 		fancy_cyclic();

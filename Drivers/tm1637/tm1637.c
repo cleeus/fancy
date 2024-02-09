@@ -343,7 +343,7 @@ void tm1637_write_fractional(tm1637_t *tm1637, char prefix, float digit, uint8_t
   uint8_t buffer[6] = {0};
   const int16_t  digit_int   =  digit;
   uint16_t fract_factor = 1;
-  for(;floating_digit!=0;floating_digit--) {
+  for(int i=0;i<floating_digit;i++) {
   	fract_factor *= 10;
   }
   const uint16_t digit_fract = (digit - digit_int) * fract_factor;
@@ -355,9 +355,11 @@ void tm1637_write_fractional(tm1637_t *tm1637, char prefix, float digit, uint8_t
   } else {
     tm1637_i32toa_n(str, sizeof(str), digit_int, 1);
   }
-  strncat(str, ".", sizeof(str)-1);
-  const size_t len = strnlen(str, sizeof(str));
-  tm1637_i32toa_n(&str[len], sizeof(str)-len, digit_fract, 1);
+  if(floating_digit > 0) {
+  	strncat(str, ".", sizeof(str)-1);
+  	const size_t len = strnlen(str, sizeof(str));
+  	tm1637_i32toa_n(&str[len], sizeof(str)-len, digit_fract, 1);
+  }
 
   if (tm1637->show_zero == false)
   {

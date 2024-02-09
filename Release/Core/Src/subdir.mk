@@ -8,6 +8,8 @@ C_SRCS += \
 ../Core/Src/fancy.c \
 ../Core/Src/fancy_adctemp.c \
 ../Core/Src/fancy_rectrl.c \
+../Core/Src/fancy_regulator.c \
+../Core/Src/fancy_ticks.c \
 ../Core/Src/main.c \
 ../Core/Src/stm32f1xx_hal_msp.c \
 ../Core/Src/stm32f1xx_it.c \
@@ -19,6 +21,8 @@ OBJS += \
 ./Core/Src/fancy.o \
 ./Core/Src/fancy_adctemp.o \
 ./Core/Src/fancy_rectrl.o \
+./Core/Src/fancy_regulator.o \
+./Core/Src/fancy_ticks.o \
 ./Core/Src/main.o \
 ./Core/Src/stm32f1xx_hal_msp.o \
 ./Core/Src/stm32f1xx_it.o \
@@ -30,6 +34,8 @@ C_DEPS += \
 ./Core/Src/fancy.d \
 ./Core/Src/fancy_adctemp.d \
 ./Core/Src/fancy_rectrl.d \
+./Core/Src/fancy_regulator.d \
+./Core/Src/fancy_ticks.d \
 ./Core/Src/main.d \
 ./Core/Src/stm32f1xx_hal_msp.d \
 ./Core/Src/stm32f1xx_it.d \
@@ -45,7 +51,7 @@ Core/Src/%.o Core/Src/%.su Core/Src/%.cyclo: ../Core/Src/%.c Core/Src/subdir.mk
 clean: clean-Core-2f-Src
 
 clean-Core-2f-Src:
-	-$(RM) ./Core/Src/fancy.cyclo ./Core/Src/fancy.d ./Core/Src/fancy.o ./Core/Src/fancy.su ./Core/Src/fancy_adctemp.cyclo ./Core/Src/fancy_adctemp.d ./Core/Src/fancy_adctemp.o ./Core/Src/fancy_adctemp.su ./Core/Src/fancy_rectrl.cyclo ./Core/Src/fancy_rectrl.d ./Core/Src/fancy_rectrl.o ./Core/Src/fancy_rectrl.su ./Core/Src/main.cyclo ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/stm32f1xx_hal_msp.cyclo ./Core/Src/stm32f1xx_hal_msp.d ./Core/Src/stm32f1xx_hal_msp.o ./Core/Src/stm32f1xx_hal_msp.su ./Core/Src/stm32f1xx_it.cyclo ./Core/Src/stm32f1xx_it.d ./Core/Src/stm32f1xx_it.o ./Core/Src/stm32f1xx_it.su ./Core/Src/syscalls.cyclo ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.cyclo ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32f1xx.cyclo ./Core/Src/system_stm32f1xx.d ./Core/Src/system_stm32f1xx.o ./Core/Src/system_stm32f1xx.su
+	-$(RM) ./Core/Src/fancy.cyclo ./Core/Src/fancy.d ./Core/Src/fancy.o ./Core/Src/fancy.su ./Core/Src/fancy_adctemp.cyclo ./Core/Src/fancy_adctemp.d ./Core/Src/fancy_adctemp.o ./Core/Src/fancy_adctemp.su ./Core/Src/fancy_rectrl.cyclo ./Core/Src/fancy_rectrl.d ./Core/Src/fancy_rectrl.o ./Core/Src/fancy_rectrl.su ./Core/Src/fancy_regulator.cyclo ./Core/Src/fancy_regulator.d ./Core/Src/fancy_regulator.o ./Core/Src/fancy_regulator.su ./Core/Src/fancy_ticks.cyclo ./Core/Src/fancy_ticks.d ./Core/Src/fancy_ticks.o ./Core/Src/fancy_ticks.su ./Core/Src/main.cyclo ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/stm32f1xx_hal_msp.cyclo ./Core/Src/stm32f1xx_hal_msp.d ./Core/Src/stm32f1xx_hal_msp.o ./Core/Src/stm32f1xx_hal_msp.su ./Core/Src/stm32f1xx_it.cyclo ./Core/Src/stm32f1xx_it.d ./Core/Src/stm32f1xx_it.o ./Core/Src/stm32f1xx_it.su ./Core/Src/syscalls.cyclo ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.cyclo ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32f1xx.cyclo ./Core/Src/system_stm32f1xx.d ./Core/Src/system_stm32f1xx.o ./Core/Src/system_stm32f1xx.su
 
 .PHONY: clean-Core-2f-Src
 
