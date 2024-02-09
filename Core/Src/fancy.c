@@ -6,24 +6,64 @@
  */
 #include <stdbool.h>
 #include <assert.h>
+#include <math.h>
 #include "fancy_adctemp.h"
 #include "main.h"
 #include "tm1637.h"
 #include "dht.h"
 #include "fancy_rectrl.h"
 
+#define max(a,b) ((a) > (b) ? (a) : (b))
+#define min(a,b) ((a) < (b) ? (a) : (b))
+
+
+int64_t fancy_gettick(void) {
+	static uint32_t hal_last_ticks = 0;
+	static uint64_t fancy_ticks = 0;
+
+	const uint32_t hal_ticks = HAL_GetTick();
+
+	fancy_ticks += hal_ticks - hal_last_ticks;
+	hal_last_ticks = hal_ticks;
+
+	return fancy_ticks;
+}
+
+
 struct measurement_t {
 	float val;
 	bool is_valid;
+	int64_t time;
 };
 
-static struct Fancy_t {
-	bool is_initialzed;
 
+struct fancy_measurements_t {
 	struct measurement_t temp_dht;
 	struct measurement_t temp_ntc;
 	struct measurement_t temp_core;
 	struct measurement_t vdda;
+};
+
+struct fancy_lpfilt_t {
+	float state;
+	float coef;
+};
+
+
+static struct Fancy_t {
+	bool is_initialzed;
+
+	struct fancy_measurements_t msm_raw;
+	struct fancy_measurements_t msm_checked;
+	struct fancy_measurements_t msm_lastvalid;
+	struct fancy_measurements_t msm_filtered;
+	struct measurement_t temp_fused;
+	struct measurement_t temp_fused_filtered;
+
+	struct fancy_lpfilt_t filt_temp_core;
+	struct fancy_lpfilt_t filt_temp_ntc;
+	struct fancy_lpfilt_t filt_temp_dht;
+	struct fancy_lpfilt_t filt_temp;
 
 	rectrl_t rectrl;
 	int8_t switch_state;
@@ -71,6 +111,20 @@ static void fancy_init(
 
 	adctemp_init(&g_fancy.adctemp, ntc_adc);
 
+
+	g_fancy.filt_temp_dht.state = NAN;
+	g_fancy.filt_temp_dht.coef = 0.7f;
+
+	g_fancy.filt_temp_ntc.state = NAN;
+	g_fancy.filt_temp_ntc.coef = 0.7f;
+
+	g_fancy.filt_temp_core.state = NAN;
+	g_fancy.filt_temp_core.coef = 0.7f;
+
+	g_fancy.filt_temp.state = NAN;
+	g_fancy.filt_temp.coef = 1.5f;
+
+
 	g_fancy.is_initialzed = true;
 }
 
@@ -100,32 +154,40 @@ static void fancy_tm1637_display_update(void) {
 
 	switch(value_cycle) {
 		case 0:
-			if(g_fancy.temp_dht.is_valid) {
-				tm1637_write_fractional(&g_tm1637_INV, 'd', g_fancy.temp_dht.val, 1, 0);
+			if(g_fancy.temp_fused_filtered.is_valid) {
+				tm1637_write_fractional(&g_tm1637_INV, 'A', g_fancy.temp_fused_filtered.val, 1, 0);
+			} else {
+				const char A_invalid[] = "A---";
+				tm1637_write_str(&g_tm1637_INV, A_invalid, sizeof(A_invalid), 0);
+			}
+			break;
+		case 1:
+			if(g_fancy.msm_raw.temp_dht.is_valid) {
+				tm1637_write_fractional(&g_tm1637_INV, 'd', g_fancy.msm_raw.temp_dht.val, 1, 0);
 			} else {
 				const char d_invalid[] = "d---";
 				tm1637_write_str(&g_tm1637_INV, d_invalid, sizeof(d_invalid), 0);
 			}
 			break;
-		case 1:
-			if(g_fancy.temp_ntc.is_valid) {
-				tm1637_write_fractional(&g_tm1637_INV, 't', g_fancy.temp_ntc.val, 1, 0);
+		case 2:
+			if(g_fancy.msm_raw.temp_ntc.is_valid) {
+				tm1637_write_fractional(&g_tm1637_INV, 't', g_fancy.msm_raw.temp_ntc.val, 1, 0);
 			} else {
 				const char t_invalid[] = "t---";
 				tm1637_write_str(&g_tm1637_INV, t_invalid, sizeof(t_invalid), 0);
 			}
 			break;
-		case 2:
-			if(g_fancy.temp_core.is_valid) {
-				tm1637_write_fractional(&g_tm1637_INV, 'c', g_fancy.temp_core.val, 1, 0);
+		case 3:
+			if(g_fancy.msm_raw.temp_core.is_valid) {
+				tm1637_write_fractional(&g_tm1637_INV, 'c', g_fancy.msm_raw.temp_core.val, 1, 0);
 			} else {
 				const char c_invalid[] = "c---";
 				tm1637_write_str(&g_tm1637_INV, c_invalid, sizeof(c_invalid), 0);
 			}
 			break;
-		case 3:
-			if(g_fancy.vdda.is_valid) {
-				tm1637_write_fractional(&g_tm1637_INV, 'u', g_fancy.vdda.val, 2, 0);
+		case 4:
+			if(g_fancy.msm_raw.vdda.is_valid) {
+				tm1637_write_fractional(&g_tm1637_INV, 'u', g_fancy.msm_raw.vdda.val, 2, 0);
 			} else {
 				const char u_invalid[] = "u---";
 				tm1637_write_str(&g_tm1637_INV, u_invalid, sizeof(u_invalid), 0);
@@ -136,6 +198,123 @@ static void fancy_tm1637_display_update(void) {
 			value_cycle = 0;
 			break;
 	}
+}
+
+static void fancy_sensor_range_check(const struct measurement_t * const in, struct measurement_t * const out, const float limit_min, const float limit_max, const uint32_t max_age) {
+	const int64_t now = fancy_gettick();
+	out->is_valid = false;
+	if(    in->is_valid
+			&& !isinff(in->val)
+			&& !isnanf(in->val)
+			&& in->val >= limit_min
+			&& in->val <= limit_max
+			&& (now - in->time) <= max_age)
+	{
+		*out = *in;
+	}
+}
+
+static void fancy_sensor_range_checks(void) {
+	fancy_sensor_range_check(&g_fancy.msm_raw.vdda,      &g_fancy.msm_checked.vdda,      3.2f,  3.4f,  10000);
+	fancy_sensor_range_check(&g_fancy.msm_raw.temp_dht,  &g_fancy.msm_checked.temp_dht,  15.0f, 50.0f, 10000);
+	fancy_sensor_range_check(&g_fancy.msm_raw.temp_ntc,  &g_fancy.msm_checked.temp_ntc,  15.0f, 50.0f, 10000);
+	fancy_sensor_range_check(&g_fancy.msm_raw.temp_core, &g_fancy.msm_checked.temp_core, 15.0f, 50.0f, 10000);
+
+	//if vdda 3.3V is not valid, core and ntc can not be trusted either
+	if(!g_fancy.msm_checked.vdda.is_valid) {
+		g_fancy.msm_checked.temp_core.is_valid = false;
+		g_fancy.msm_checked.temp_ntc.is_valid = false;
+	}
+
+	if(g_fancy.msm_checked.temp_dht.is_valid)  { g_fancy.msm_lastvalid.temp_dht  = g_fancy.msm_checked.temp_dht;}
+	if(g_fancy.msm_checked.temp_ntc.is_valid)  { g_fancy.msm_lastvalid.temp_ntc  = g_fancy.msm_checked.temp_ntc;}
+	if(g_fancy.msm_checked.temp_core.is_valid) { g_fancy.msm_lastvalid.temp_core = g_fancy.msm_checked.temp_core;}
+
+}
+
+
+static float fancy_lpfilt(struct fancy_lpfilt_t *filt, const float in) {
+	if(isnanf(filt->state)) {
+		filt->state = in;
+	} else {
+		filt->state = (filt->state * filt->coef + in) / (1+filt->coef);
+	}
+
+	return filt->state;
+}
+
+static void fancy_sensor_filter_apply(struct fancy_lpfilt_t *filt, const struct measurement_t * const in, struct measurement_t * const out) {
+	out->val      = fancy_lpfilt(filt, in->val);
+	out->is_valid = false; //choose validity later
+	out->time     = in->time;
+}
+
+static void fancy_sensor_filters(void) {
+	fancy_sensor_filter_apply(&g_fancy.filt_temp_dht,  &g_fancy.msm_lastvalid.temp_dht,  &g_fancy.msm_filtered.temp_dht);
+	fancy_sensor_filter_apply(&g_fancy.filt_temp_ntc,  &g_fancy.msm_lastvalid.temp_ntc,  &g_fancy.msm_filtered.temp_ntc);
+	fancy_sensor_filter_apply(&g_fancy.filt_temp_core, &g_fancy.msm_lastvalid.temp_core, &g_fancy.msm_filtered.temp_core);
+
+	//validity from original signal
+	g_fancy.msm_filtered.temp_dht.is_valid  = g_fancy.msm_checked.temp_dht.is_valid;
+	g_fancy.msm_filtered.temp_ntc.is_valid  = g_fancy.msm_checked.temp_ntc.is_valid;
+	g_fancy.msm_filtered.temp_core.is_valid = g_fancy.msm_checked.temp_core.is_valid;
+}
+
+static void fancy_sensor_fusion(void) {
+	const float weight_core = 0.7f;
+	const float weight_ntc = 1.3f;
+	const float weight_dht = 1.0f;
+
+	if(g_fancy.msm_filtered.temp_core.is_valid
+	&& g_fancy.msm_filtered.temp_dht.is_valid
+	&& g_fancy.msm_filtered.temp_ntc.is_valid)
+	{
+		const float inv_weight_sum = 1.0f / (weight_core + weight_ntc + weight_dht);
+
+		g_fancy.temp_fused.val =
+					(g_fancy.msm_filtered.temp_core.val * weight_core
+				 + g_fancy.msm_filtered.temp_dht.val * weight_dht
+				 + g_fancy.msm_filtered.temp_ntc.val * weight_ntc) * inv_weight_sum;
+		g_fancy.temp_fused.is_valid = true;
+		g_fancy.temp_fused.time = min(min(g_fancy.msm_filtered.temp_core.time, g_fancy.msm_filtered.temp_dht.time), g_fancy.msm_filtered.temp_ntc.time);
+	}
+	else {
+		const struct measurement_t * in[3];
+		float weight[3] = {0};
+		int mcount = 0;
+		if(g_fancy.msm_filtered.temp_core.is_valid) {
+			in[mcount] = &g_fancy.msm_filtered.temp_core;
+			weight[mcount] = weight_core;
+			mcount++;
+		}
+		if(g_fancy.msm_filtered.temp_dht.is_valid) {
+			in[mcount] = &g_fancy.msm_filtered.temp_dht;
+			weight[mcount] = weight_dht;
+			mcount++;
+		}
+		if(g_fancy.msm_filtered.temp_ntc.is_valid) {
+			in[mcount] = &g_fancy.msm_filtered.temp_ntc;
+			weight[mcount] = weight_ntc;
+			mcount++;
+		}
+
+		if(mcount == 2) {
+			const float inv_weight_sum = 1.0f / (weight[0] + weight[1]);
+			g_fancy.temp_fused.val =
+							(in[0]->val * weight[0]
+						 + in[1]->val * weight[1]) * inv_weight_sum;
+			g_fancy.temp_fused.is_valid = true;
+			g_fancy.temp_fused.time = min(in[0]->time, in[1]->time);
+		} else if(mcount == 1) {
+			g_fancy.temp_fused = *in[0];
+		} else if(mcount == 0) {
+			g_fancy.temp_fused.is_valid = false;
+		}
+	}
+
+	fancy_sensor_filter_apply(&g_fancy.filt_temp,  &g_fancy.temp_fused,  &g_fancy.temp_fused_filtered);
+	g_fancy.temp_fused_filtered.is_valid = g_fancy.temp_fused.is_valid;
+
 }
 
 enum BuzzerFreqs {
@@ -403,8 +582,9 @@ static void fancy_cycle_switches(void) {
 
 static void fancy_read_dht_sensor(void) {
 	float humi = 0;
-	const bool ok = DHT_readData(&g_dht11, &g_fancy.temp_dht.val, &humi);
-	g_fancy.temp_dht.is_valid = ok && (humi != 0);
+	const bool ok = DHT_readData(&g_dht11, &g_fancy.msm_raw.temp_dht.val, &humi);
+	g_fancy.msm_raw.temp_dht.is_valid = ok && (humi != 0);
+	g_fancy.msm_raw.temp_dht.time = fancy_gettick();
 }
 
 static void fancy_read_adc_sensors(void) {
@@ -412,14 +592,17 @@ static void fancy_read_adc_sensors(void) {
 
 	adctemp_measure(&g_fancy.adctemp, &result);
 
-	g_fancy.temp_ntc.val = result.ntc_degC;
-	g_fancy.temp_ntc.is_valid = result.ntc_degC_is_valid;
+	g_fancy.msm_raw.temp_ntc.val = result.ntc_degC;
+	g_fancy.msm_raw.temp_ntc.is_valid = result.ntc_degC_is_valid;
+	g_fancy.msm_raw.temp_ntc.time = fancy_gettick();
 
-	g_fancy.temp_core.val = result.core_degC;
-	g_fancy.temp_core.is_valid = result.ntc_degC_is_valid;
+	g_fancy.msm_raw.temp_core.val = result.core_degC;
+	g_fancy.msm_raw.temp_core.is_valid = result.ntc_degC_is_valid;
+	g_fancy.msm_raw.temp_core.time = fancy_gettick();
 
-	g_fancy.vdda.val = result.vdda_V;
-	g_fancy.vdda.is_valid = result.vdda_V_is_valid;
+	g_fancy.msm_raw.vdda.val = result.vdda_V;
+	g_fancy.msm_raw.vdda.is_valid = result.vdda_V_is_valid;
+	g_fancy.msm_raw.vdda.time = fancy_gettick();
 }
 
 static void fancy_cyclic(void) {
@@ -428,6 +611,10 @@ static void fancy_cyclic(void) {
 	fancy_heartbeat();
 	fancy_read_dht_sensor();
 	fancy_read_adc_sensors();
+	fancy_sensor_range_checks();
+	fancy_sensor_filters();
+	fancy_sensor_fusion();
+
 	HAL_Delay(1);
 	fancy_tm1637_display_update();
 	fancy_periodic_alive_sound();
