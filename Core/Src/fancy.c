@@ -379,11 +379,12 @@ static void fancy_buzzer_sound(const uint16_t freq, const uint8_t duration_ms) {
 }
 
 static void fancy_periodic_alive_sound(void) {
-	static uint32_t cycle_count = 0;
+	static uint8_t cycle_count = 0;
 	cycle_count++;
 	//if(cycle_count >= 7 /*hours*/ * 60 /*minutes*/ * 60 /*seconds*/) {
 	//if(cycle_count >= 1 /*minutes*/ * 60 /*seconds*/) {
-	if(cycle_count >= 10 /* seconds */) {
+	if(cycle_count >= 30 /* seconds */) {
+	//if(cycle_count >= 10 /* seconds */) {
 		fancy_buzzer_sound(BUZZER_FREQ_ALIVE1, 30);
 		fancy_buzzer_sound(BUZZER_FREQ_ALIVE2, 30);
 		fancy_buzzer_sound(BUZZER_FREQ_ALIVE1, 30);
