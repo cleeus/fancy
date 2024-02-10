@@ -2,18 +2,20 @@
 #include "fancy_regulator.h"
 #include "fancy_ticks.h"
 
+static const float FANCY_REGULATOR_TARGET = 28.0f;
+static const float FANCY_HYSTERESIS_UP_TRESHHOLD = 1.5f;
+static const float FANCY_HYSTERESIS_DOWN_TRESHHOLD = 3.0f;
+
 void fancy_regulator_init(struct FancyRegulator_t *rg) {
 	rg->state = FRS_STABLE;
-	rg->target = 28.0f;
-	rg->hyst_thresh = 3.0f;
 }
 
 static int fancy_regulate_stable(struct FancyRegulator_t *rg, float const temperature) {
-	if(temperature > (rg->target + rg->hyst_thresh*0.5f)) {
+	if(temperature > (FANCY_REGULATOR_TARGET + FANCY_HYSTERESIS_UP_TRESHHOLD)) {
 		rg->state = FRS_UP;
 		rg->stime = fancy_gettick();
 		return -2;
-	} else if(temperature < (rg->target - rg->hyst_thresh)) {
+	} else if(temperature < (FANCY_REGULATOR_TARGET - FANCY_HYSTERESIS_DOWN_TRESHHOLD)) {
 		rg->state = FRS_DOWN;
 		rg->stime = fancy_gettick();
 		return 1;

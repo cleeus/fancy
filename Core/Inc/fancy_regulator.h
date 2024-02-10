@@ -12,10 +12,6 @@ enum FancyRegulatorState_e {
 struct FancyRegulator_t {
 	enum FancyRegulatorState_e state;
 	int64_t stime;
-
-	float target;
-	float hyst_thresh;
-
 };
 
 
