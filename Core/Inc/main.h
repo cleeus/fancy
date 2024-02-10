@@ -96,6 +96,8 @@ void Error_Handler(void);
 #define TM1637_NCLK_GPIO_Port GPIOB
 #define TM1637_NDIO_Pin GPIO_PIN_4
 #define TM1637_NDIO_GPIO_Port GPIOB
+#define CAN_OE_Pin GPIO_PIN_5
+#define CAN_OE_GPIO_Port GPIOB
 #define BUZZER_TIM_Pin GPIO_PIN_8
 #define BUZZER_TIM_GPIO_Port GPIOB
 

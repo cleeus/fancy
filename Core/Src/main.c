@@ -401,7 +401,8 @@ static void MX_GPIO_Init(void)
                           |ALTVOLT_MOSFET_2_Pin|ALTVOLT_MOSFET_1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, RELAY_OE_Pin|CH7_MOSFET_ALTVOLT_Pin|TM1637_NCLK_Pin|TM1637_NDIO_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, RELAY_OE_Pin|CH7_MOSFET_ALTVOLT_Pin|TM1637_NCLK_Pin|TM1637_NDIO_Pin
+                          |CAN_OE_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CH7_MOSFET_12V_GPIO_Port, CH7_MOSFET_12V_Pin, GPIO_PIN_SET);
@@ -425,9 +426,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : RELAY_OE_Pin CH7_MOSFET_12V_Pin CH7_MOSFET_ALTVOLT_Pin TM1637_NCLK_Pin
-                           TM1637_NDIO_Pin */
+                           TM1637_NDIO_Pin CAN_OE_Pin */
   GPIO_InitStruct.Pin = RELAY_OE_Pin|CH7_MOSFET_12V_Pin|CH7_MOSFET_ALTVOLT_Pin|TM1637_NCLK_Pin
-                          |TM1637_NDIO_Pin;
+                          |TM1637_NDIO_Pin|CAN_OE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
